@@ -1,1 +1,1 @@
-{"name":"agent-system-mcp","version":"1.0.0","private":true,"type":"module","dependencies":{"@modelcontextprotocol/server":"2.4.0","@supabase/supabase-js":"2.119.2","jose":"6.2.18"},"devDependencies":{"@modelcontextprotocol/client":"2.4.0","esbuild":"0.28.2"}}
+{"name":"agent-system-mcp","version":"1.0.0","private":true,"type":"module","dependencies":{"@modelcontextprotocol/server":"2.4.0","@supabase/supabase-js":"2.119.2","jose":"6.2.18","qrcode-generator":"2.0.4"},"devDependencies":{"@modelcontextprotocol/client":"2.4.0","esbuild":"0.28.2"}}

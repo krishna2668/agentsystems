@@ -27,3 +27,6 @@ local.properties
 .kotlin/
 
 /build/
+
+# Generated browser preview bundle
+permanent-gateway/chatgpt/mcp/preview/client.bundle.js

@@ -4,6 +4,7 @@ import {decodeJwt,createRemoteJWKSet} from 'jose';
 import {consentApi,supabaseDecision} from './consent-api.mjs';
 import {gatewayOrigin,authProject} from './consent-policy.mjs';
 import {assets} from './consent-assets.mjs';
+import {previewPage,previewAsset} from './preview/page.mjs';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const enc=new TextEncoder();
@@ -19,8 +20,8 @@ export function appLinkResponse(path,method,search,fingerprint=androidFingerprin
  if(!path.startsWith("/artifacts/"))return null;
  const job=path.slice("/artifacts/".length);
  if(method!=="GET"||search||!uuid.test(job))return json({error:"Not found"},404);
- // Browser fallback contains no credential or artifact data; sign-in is required.
- return new Response(null,{status:302,headers:{Location:"/workers?artifact="+job,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+ // A browser receives a static handoff, never an account-management screen.
+ return previewPage(job);
 }
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' "+authProject+"; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"};
@@ -76,6 +77,8 @@ export function buildGateway({rpcCall=rpc,limiter=limit,dispatch=dispatchOwner,j
    if(url.origin!==gatewayOrigin)return json({error:'Invalid host'},400);
    const appLink=appLinkResponse(path,req.method,url.search);
    if(appLink)return appLink;
+   const handoffAsset=previewAsset(path,req.method,url.search);
+   if(handoffAsset)return handoffAsset;
    const isMcp=path==='/mcp'||path==='/\.well-known/oauth-protected-resource'||path==='/\.well-known/oauth-protected-resource/mcp';
    const isOauth=path==='/'||path==='/workers'||path.startsWith('/oauth/');
    const isReady=path==='/ready';
