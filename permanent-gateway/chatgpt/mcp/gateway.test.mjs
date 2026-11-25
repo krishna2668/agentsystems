@@ -134,3 +134,20 @@ test('media manifest delegated, raw artifact and capability permission not deleg
  assert.equal(allowedMcpRoute('GET','/owner/jobs/'+session+'/artifact/0'),false);
  assert.equal(allowedMcpRoute('POST','/owner/devices/'+session+'/media-permission'),false);
 });
+
+test('App Links publish only the reviewed certificate; browser fallback reveals no media',async()=>{
+ const {appLinkResponse}=await import('./gateway.mjs');
+ const path='/.well-known/assetlinks.json',fingerprint=Array(32).fill('AB').join(':');
+ assert.deepEqual(await appLinkResponse(path,'GET','').json(),[]);
+ const r=appLinkResponse(path,'GET','',fingerprint);
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),[{relation:['delegate_permission/common.handle_all_urls'],target:{namespace:'android_app',package_name:'dev.worker.test',sha256_cert_fingerprints:[fingerprint]}}]);
+ const {gw}=fixture();
+ const link=await gw.fetch(get('/artifacts/'+session),env);
+ assert.equal(link.status,302);
+ assert.equal(link.headers.get('Location'),'/workers?artifact='+session);
+ assert.equal(await link.text(),'');
+ assert.equal((await gw.fetch(get('/artifacts/'+session+'?token=x'),env)).status,404);
+ assert.equal((await gw.fetch(get('/artifacts/not-a-job'),env)).status,404);
+ assert.equal((await gw.fetch(post(path,{}),env)).status,404);
+});

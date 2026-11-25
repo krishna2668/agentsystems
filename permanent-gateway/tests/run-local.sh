@@ -46,6 +46,7 @@ psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_mcp_oauth_bou
 psql -X -v ON_ERROR_STOP=1 -f tests/oauth.sql
 
 psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_media_animatic.sql' | head -1)"
+psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_device_artifact_retrieval.sql' | head -1)"
 psql -X -v ON_ERROR_STOP=1 -f tests/media.sql
 
 psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_mcp_gateway_transition.sql' | head -1)"

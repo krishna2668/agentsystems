@@ -6,6 +6,11 @@ on:
         description: 'Upload candidate only after initialization (false = read-only preflight)'
         type: boolean
         default: false
+      android_cert_sha256:
+        description: 'Optional reviewed Android signing certificate fingerprint for App Links'
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -55,9 +60,12 @@ jobs:
         env:
           GATEWAY_ORIGIN: ${{ secrets.GATEWAY_ORIGIN }}
           SUPABASE_ORIGIN: ${{ secrets.SUPABASE_ORIGIN }}
+          ANDROID_CERT_SHA256: ${{ inputs.android_cert_sha256 }}
         run: |
           test -n "$GATEWAY_ORIGIN" && test -n "$SUPABASE_ORIGIN"
-          python3 scripts/configure-deployment.py --gateway "$GATEWAY_ORIGIN" --supabase "$SUPABASE_ORIGIN"
+          args=(--gateway "$GATEWAY_ORIGIN" --supabase "$SUPABASE_ORIGIN")
+          if [[ -n "$ANDROID_CERT_SHA256" ]]; then args+=(--android-cert-sha256 "$ANDROID_CERT_SHA256"); fi
+          python3 scripts/configure-deployment.py "${args[@]}"
       - run: bash scripts/build-gateway.sh
         if: inputs.upload_candidate
       - name: Upload immutable Cloudflare candidate

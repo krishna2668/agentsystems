@@ -22,6 +22,7 @@ import org.json.JSONObject;
 public final class MainActivity extends Activity {
  private static final String ALIAS="worker-test-v04";
  private static final String GATEWAY="https://gateway.example.invalid";
+ static String gatewayOrigin(){return GATEWAY;}
  private static final String PREVIOUS_GATEWAY="https://previous-gateway.example.invalid";
  private static final java.util.concurrent.atomic.AtomicBoolean TRANSITIONING=new java.util.concurrent.atomic.AtomicBoolean();
  private static final String ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

@@ -22,6 +22,15 @@ public final class MediaExecutionTest {
   if(!m.pending()||renders[0]!=1||!complete[0])throw new AssertionError("rerender or missing artifact");
   m=new MediaExecution(dir,remote,render);
   if(!job.equals(m.step())||m.pending()||renders[0]!=1||writes[0]!=4)throw new AssertionError("recovery");
-  System.out.println("PASS: interrupted chunk, lost completion, restart and single render");
+  ArtifactLibrary library=new ArtifactLibrary(dir);
+  if(!library.jobs().equals(Collections.singletonList(job))||!Arrays.equals(Files.readAllBytes(library.file(job)),bytes))throw new AssertionError("completed artifact missing");
+  if(!library.publish(job,bytes,expected).equals(library.file(job)))throw new AssertionError("retry");
+  try{library.publish(job,bytes,"bad");throw new AssertionError("accepted bad digest");}catch(IOException ok){}
+  try{library.file("../escape");throw new AssertionError("accepted path traversal");}catch(IllegalArgumentException ok){}
+  if(!Arrays.equals(Files.readAllBytes(library.file(job)),bytes))throw new AssertionError("artifact modified");
+  String next=UUID.randomUUID().toString();
+  m.save(new MediaExecution.Claim(next+"\t"+lease+"\t"+MediaExecution.CAPABILITY+"\t"+input));
+  if(!Files.exists(library.file(job)))throw new AssertionError("next job removed prior output");
+  System.out.println("PASS: interrupted chunk, lost completion, restart, single render, durable library, integrity and next-job isolation");
  }
 }

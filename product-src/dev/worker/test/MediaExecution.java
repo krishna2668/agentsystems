@@ -30,8 +30,10 @@ final class MediaExecution {
   String legacy(){return String.join("\t",job,lease,payload);}
  }
  private final Path meta,artifact,part;
+ private final ArtifactLibrary library;
  private final Remote remote;private final Render renderer;
  MediaExecution(Path dir,Remote remote,Render renderer){
+  library=new ArtifactLibrary(dir);
   meta=dir.resolve("media-checkpoint-v1");artifact=dir.resolve("media-artifact-v1.mp4");part=dir.resolve("media-artifact-v1.part.mp4");this.remote=remote;this.renderer=renderer;
  }
  boolean pending(){return Files.exists(meta);}
@@ -74,6 +76,8 @@ final class MediaExecution {
    }
   }
   if(!"completed".equals(r.state)||!digest.equals(r.proof))throw new IOException("Media completion unconfirmed");
+  // Publish before clearing the checkpoint; a restart safely retries publication.
+  library.publish(c.job,data,digest);
   Files.delete(meta);Files.deleteIfExists(artifact);return c.job;
  }
  private static void checkClaim(Execution.Recovery r,Claim c)throws IOException{
