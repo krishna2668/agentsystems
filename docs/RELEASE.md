@@ -17,3 +17,15 @@ Use reviewed, forward-only migration files. Compare the hosted migration history
 ## Android
 
 Local debug-signed candidates are not release-signed distribution artifacts. Production signing requires a protected signing identity and a deliberate compatibility plan for existing enrolled devices. Do not publish signing credentials or reuse debug keys for public releases. Android distribution automation is not enabled yet.
+
+## Moving an existing gateway between accounts
+
+A Worker name and account subdomain jointly determine its origin. Changing either is an authentication and device-compatibility migration, not merely a deployment setting.
+
+- Keep the old gateway, OAuth resource and device enrollment functional until acceptance at the new origin. Never rename a shared account's Workers subdomain or modify unrelated Workers.
+- Bootstrap only a new, explicitly selected Worker from verified source. Refuse an existing target. Bind only the dedicated project's credentials and a separate rate limit namespace. Do not copy another project's runtime secrets.
+- The candidate-upload workflow applies to an existing initialized Worker; do not repoint it until bootstrap and verification are complete.
+- Add the exact new MCP resource through a reviewed forward-only database migration; never rewrite deployed migration history or allow arbitrary OAuth audiences. Reauthorize ChatGPT at the new resource; keep grants isolated.
+- Preserve enrolled device keys and IDs; require a tested, explicit origin transition before redirecting devices. Never erase a pending job checkpoint to force reconnection.
+- Verify direct login, OAuth, signed device execution, artifact retrieval and recovery before retiring the previous gateway. Record rollback steps. Do not delete the previous Worker automatically.
+- An account-level deploy token can affect other Workers within that account unless narrower resource scoping is supported. Prefer the narrowest available scope, an explicit script target, environment approval, and short-lived credentials. Account separation remains optional; monitor shared usage and do not purchase capacity without approval.
