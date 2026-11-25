@@ -7,6 +7,7 @@ import android.widget.MediaController
 import android.widget.VideoView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -54,7 +55,7 @@ class CompanionActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        route(intent)
+        if (savedInstanceState == null) route(intent)
         enableEdgeToEdge()
         setContent {
             val dark = isSystemInDarkTheme()
@@ -74,6 +75,7 @@ class CompanionActivity : ComponentActivity() {
 @Composable
 private fun Companion(refresh: Int, previewRequest: Pair<Int,String>?) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val library = remember { ArtifactLibrary(context.filesDir.toPath()) }
     val prefs = remember { context.getSharedPreferences("worker_v04", 0) }
     var destination by rememberSaveable { mutableIntStateOf(0) }
@@ -83,14 +85,17 @@ private fun Companion(refresh: Int, previewRequest: Pair<Int,String>?) {
     var error by remember { mutableStateOf(false) }
     val connected = prefs.contains("id")
     // Refresh the data, not the screen. Existing results stay visible during refresh.
-    LaunchedEffect(refresh, destination, selected) {
+    LaunchedEffect(lifecycle, refresh, destination, selected) {
         if (selected != null || destination == 2) return@LaunchedEffect
-        while (true) {
-            val result = withContext(Dispatchers.IO) { runCatching { library.jobs() } }
-            result.onSuccess { jobs = it }
-            error = result.isFailure
-            loading = false
-            delay(2000)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val result = withContext(Dispatchers.IO) { runCatching { library.jobs() } }
+                coroutineContext.ensureActive()
+                result.onSuccess { jobs = it }
+                error = result.isFailure
+                loading = false
+                delay(2000)
+            }
         }
     }
     LaunchedEffect(previewRequest) { if (previewRequest != null) selected = previewRequest.second }
@@ -229,11 +234,18 @@ private fun NativePreview(file: File, modifier: Modifier) {
     var video by remember { mutableStateOf<VideoView?>(null) }
     var failed by remember { mutableStateOf(false) }
     var resumePosition by rememberSaveable(file.name) { mutableIntStateOf(0) }
+    var resumePlaying by rememberSaveable(file.name) { mutableStateOf(true) }
+    var prepared by remember { mutableStateOf(false) }
     DisposableEffect(lifecycle, video) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) video?.let {
-                resumePosition = it.currentPosition
-                it.pause()
+                if (prepared) {
+                    resumePosition = it.currentPosition
+                    resumePlaying = it.isPlaying
+                    it.pause()
+                }
+            } else if (event == Lifecycle.Event.ON_RESUME && prepared && resumePlaying) {
+                video?.start()
             }
         }
         lifecycle.addObserver(observer)
@@ -249,15 +261,16 @@ private fun NativePreview(file: File, modifier: Modifier) {
                 setMediaController(controls)
                 setOnErrorListener { _, _, _ -> failed = true; true }
                 setOnPreparedListener {
+                    prepared = true
                     if (resumePosition > 0) seekTo(resumePosition)
-                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) start()
+                    if (resumePlaying && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) start()
                 }
                 setVideoPath(file.absolutePath)
                 video = this
             }
         },
         modifier = modifier,
-        onRelease = { it.stopPlayback(); if (video === it) video = null },
+        onRelease = { it.stopPlayback(); if (video === it) { video = null; prepared = false } },
         update = {}
     )
 }
