@@ -1,0 +1,67 @@
+\set ON_ERROR_STOP on
+set role service_role;
+insert into worker_private.owners(id) values('00000000-0000-4000-8000-000000000001'),('00000000-0000-4000-8000-000000000002');
+do $$
+declare
+ a uuid:='00000000-0000-4000-8000-000000000001';
+ b uuid:='00000000-0000-4000-8000-000000000002';
+ h bytea:=sha256('pair-A'::bytea);
+ hb bytea:=sha256('pair-B'::bytea);
+ k bytea:=decode(repeat('ab',91),'hex');
+ kb bytea:=decode(repeat('cd',91),'hex');
+ x jsonb; da uuid; db uuid; j uuid; l uuid; l2 uuid; nonce uuid; stamp bigint;
+ payload bytea:=convert_to('Physical Worker production gateway test','UTF8');
+begin
+ assert (public.worker_issue_pairing(a,h)->>'status')::int=201;
+ x:=public.worker_enroll(h,k); assert (x->>'status')::int=201; da:=(x->>'device_id')::uuid;
+ assert (public.worker_enroll(h,k)->>'device_id')::uuid=da;
+ assert (public.worker_enroll(h,kb)->>'status')::int=401;
+ assert (public.worker_issue_pairing(b,hb)->>'status')::int=201;
+ x:=public.worker_enroll(hb,kb); db:=(x->>'device_id')::uuid;
+ assert (public.worker_key(da)->>'public_key') is not null;
+ raise notice 'PASS: pairing, idempotent recovery, key separation';
+ assert (public.worker_submit(b,da,'wrong-owner',payload)->>'status')::int=400;
+ x:=public.worker_submit(a,da,'one',payload); assert (x->>'status')::int=201; j:=(x->>'job_id')::uuid;
+ assert (public.worker_submit(a,da,'one',payload)->>'job_id')::uuid=j;
+ assert (public.worker_submit(a,da,'one','different'::bytea)->>'status')::int=409;
+ assert public.worker_result(b,j) is null;
+ raise notice 'PASS: owner isolation and idempotent submit';
+ stamp:=extract(epoch from clock_timestamp())::bigint;
+ assert (public.worker_operation(db,gen_random_uuid(),stamp,'claim')->>'claim')='';
+ nonce:=gen_random_uuid();
+ x:=public.worker_operation(da,nonce,stamp,'claim'); assert (x->>'status')::int=200;
+ assert split_part(x->>'claim',E'\t',1)::uuid=j; l:=split_part(x->>'claim',E'\t',2)::uuid;
+ assert (public.worker_operation(da,nonce,stamp,'claim')->>'status')::int=409;
+ assert split_part(public.worker_operation(da,gen_random_uuid(),stamp,'claim')->>'claim',E'\t',2)::uuid=l;
+ assert (public.worker_operation(db,gen_random_uuid(),stamp,'recover',j,l)->>'status')::int=404;
+ assert (public.worker_operation(da,gen_random_uuid(),stamp-300,'recover',j,l)->>'status')::int=401;
+ raise notice 'PASS: claims, replay rejection, device isolation, timestamp';
+ update worker_private.jobs set deadline=clock_timestamp()-interval '1 second' where id=j;
+ x:=public.worker_operation(da,gen_random_uuid(),stamp,'claim'); l2:=split_part(x->>'claim',E'\t',2)::uuid; assert l2<>l;
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'recover',j,l)->>'status')::int=409;
+ update worker_private.jobs set deadline=clock_timestamp()-interval '1 second' where id=j;
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'recover',j,l2)->>'state')='claimed';
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'complete',j,l2,sha256('bad'::bytea))->>'status')::int=422;
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'complete',j,l2,sha256(payload))->>'state')='completed';
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'recover',j,l2)->>'sha256')=encode(sha256(payload),'hex');
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'complete',j,l2,sha256(payload))->>'status')::int=200;
+ assert (public.worker_result(a,j)->>'sha256')=encode(sha256(payload),'hex');
+ raise notice 'PASS: lease fencing, renewal, independent verification, durable result reconciliation';
+ x:=public.worker_submit(a,da,'second',payload);
+ assert (public.worker_revoke(b,da)->>'status')::int=404;
+ assert (public.worker_revoke(a,da)->>'status')::int=200;
+ assert public.worker_key(da) is null;
+ assert (public.worker_operation(da,gen_random_uuid(),stamp,'claim')->>'status')::int=401;
+ assert (public.worker_result(a,(x->>'job_id')::uuid)->>'status')='blocked';
+ assert (public.worker_result(a,j)->>'status')='completed';
+ raise notice 'PASS: revocation, blocked queue, preserved results';
+end $$;
+reset role;
+do $$ begin
+ assert not has_schema_privilege('anon','worker_private','USAGE');
+ assert not has_schema_privilege('authenticated','worker_private','USAGE');
+ assert not has_function_privilege('anon','public.worker_operation(uuid,uuid,bigint,text,uuid,uuid,bytea)','EXECUTE');
+ assert not has_function_privilege('authenticated','public.worker_enroll(bytea,bytea)','EXECUTE');
+ assert has_function_privilege('service_role','public.worker_operation(uuid,uuid,bigint,text,uuid,uuid,bytea)','EXECUTE');
+ raise notice 'PASS: explicit API grants and private schema';
+end $$;

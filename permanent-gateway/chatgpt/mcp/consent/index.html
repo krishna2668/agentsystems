@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentSystems — authorize connection</title><link rel="stylesheet" href="/oauth/style.css"><script type="module" src="/oauth/client.js"></script></head>
+<body><main><header><small>AgentSystems</small><h1>Connect ChatGPT</h1><p>Connect ChatGPT to your AgentSystems account.</p></header>
+<p id="notice" role="status" aria-live="polite">Checking connection request…</p>
+<form id="signin" hidden method="post" action="/oauth/consent">
+<h2>Sign in</h2><label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+<button type="submit" id="send">Sign in</button>
+<p>Your sign-in is handled by Supabase Auth. ChatGPT never receives your password.</p>
+</form>
+<section id="review" hidden><h2>Authorize connection</h2><p><strong>Requesting application</strong><br><span id="client"></span></p><p><strong>Return address</strong><br><span id="redirect"></span></p><p><strong>Identity scopes</strong><br><span id="scopes"></span></p>
+<h3>Access granted</h3><ul><li>Discover Workers and inspect connection requests.</li><li>Submit bounded connection tests and separately enabled media jobs; retrieve results.</li><li>Read knowledge profiles and record observations or propose learning.</li></ul><p>Device approval, media permission, revocation, spending, and committing learning require your separate authorization.</p>
+<button id="approve" type="button">Authorize ChatGPT</button><button id="deny" class="secondary" type="button">Deny</button></section>
+<section id="workers" hidden>
+<h2>Connect a Worker</h2><p>Open the Worker app on your Android device and tap Connect this Worker. Enter the request code shown on that device.</p>
+<form id="deviceForm" method="post" action="/workers">
+<label for="deviceCode">Request code</label><input id="deviceCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" placeholder="XXXX-XXXX-XXXX" required>
+<button type="submit">Review device</button></form>
+<div id="deviceReview" hidden><h3>Confirm device connection</h3><p>Only connect a device you control. It will receive work authorized for your account.</p><p id="deviceFingerprint"></p><p id="deviceExpiry"></p><button id="approveDevice" type="button">Connect device</button><button id="cancelDevice" class="secondary" type="button">Cancel</button></div>
+<section id="artifactPanel" hidden><h2>Production video</h2><p id="artifactInfo" role="status"></p><button id="downloadArtifact" type="button">Download video</button></section><h2>Registered Workers</h2><p id="workerList" aria-live="polite"></p><button id="refreshWorkers" type="button" class="secondary">Refresh</button>
+</section>
+<button id="retry" class="secondary" type="button" hidden>Try again</button><button id="logout" class="secondary" type="button" hidden>Sign out</button></main></body></html>

@@ -1,0 +1,50 @@
+set role service_role;
+do $$
+declare
+ a uuid:='00000000-0000-4000-8000-000000000001';
+ b uuid:='00000000-0000-4000-8000-000000000002';
+ p uuid; q uuid; o uuid; ob uuid; x uuid; y uuid; z uuid; r jsonb;
+begin
+ p:=(public.worker_profile_create(a,'project','Test project')->>'profile_id')::uuid;
+ q:=(public.worker_profile_create(b,'project','Test project')->>'profile_id')::uuid;
+ assert p<>q;
+ assert (public.worker_profile_create(a,'project','Test project')->>'profile_id')::uuid=p;
+ assert (public.worker_profile_create(a,'authority','Unsafe')->>'status')::int=400;
+ assert public.worker_get_context(b,p) is null;
+ assert public.worker_get_context(a,p)='[]'::jsonb;
+ r:=public.worker_observe(a,p,'obs-a','owner_statement','test:owner','Keep scope separate');
+ assert (r->>'status')::int=201;
+ o:=(r->>'observation_id')::uuid;
+ assert (public.worker_observe(a,p,'obs-a','owner_statement','test:owner','Keep scope separate')->>'observation_id')::uuid=o;
+ assert (public.worker_observe(a,p,'obs-a','owner_statement','test:owner','Changed')->>'status')::int=409;
+ assert (public.worker_observe(b,p,'obs-other','execution','test:x','Unauthorized')->>'status')::int=404;
+ ob:=(public.worker_observe(b,q,'obs-b','experiment','test:b','Other owner evidence')->>'observation_id')::uuid;
+ assert (public.worker_propose_learning(a,p,'rule',0,ob,'fact','Cross owner','Invalid')->>'status')::int=404;
+ assert (public.worker_propose_learning(a,p,'rule',0,o,'validated_learning','Unproven','Invalid')->>'status')::int=422;
+ x:=(public.worker_propose_learning(a,p,'rule',0,o,'rule','First version','Owner stated')->>'proposal_id')::uuid;
+ y:=(public.worker_propose_learning(a,p,'rule',0,o,'rule','Conflicting version','Other interpretation')->>'proposal_id')::uuid;
+ assert public.worker_get_context(a,p)='[]'::jsonb;
+ assert (public.worker_decide_learning(b,x,true)->>'status')::int=404;
+ assert (public.worker_decide_learning(a,x,true)->>'revision')::int=1;
+ assert (public.worker_decide_learning(a,x,true)->>'state')='committed';
+ assert (public.worker_decide_learning(a,x,false)->>'status')::int=409;
+ assert (public.worker_decide_learning(a,y,true)->>'status')::int=409;
+ assert (public.worker_decide_learning(a,y,false)->>'state')='rejected';
+ assert public.worker_get_context(a,p)->0->>'body'='First version';
+ assert public.worker_get_context(a,p)->0->'evidence'->>'source_ref'='test:owner';
+ z:=(public.worker_propose_learning(a,p,'rule',1,o,'rule','Corrected version','Refinement')->>'proposal_id')::uuid;
+ assert (public.worker_decide_learning(a,z,true)->>'revision')::int=2;
+ assert public.worker_get_context(a,p)->0->>'body'='Corrected version';
+ assert (select count(*) from worker_private.knowledge_revisions where owner_id=a and profile_id=p)=2;
+ assert (select body from worker_private.knowledge_revisions where owner_id=a and profile_id=p and revision=1)='First version';
+ raise notice 'PASS: scoped profiles, evidence, idempotent observations, explicit review, stale revision conflict, correction history';
+end $$;
+reset role;
+do $$ begin
+ assert not has_table_privilege('anon','worker_private.observations','SELECT');
+ assert not has_function_privilege('authenticated','public.worker_decide_learning(uuid,uuid,boolean)','EXECUTE');
+ assert not has_table_privilege('service_role','worker_private.knowledge_revisions','UPDATE');
+ assert not has_table_privilege('service_role','worker_private.observations','DELETE');
+ assert has_function_privilege('service_role','public.worker_get_context(uuid,uuid,integer)','EXECUTE');
+ raise notice 'PASS: private learning APIs and append-only evidence/revisions';
+end $$;

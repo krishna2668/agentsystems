@@ -1,0 +1,57 @@
+\set ON_ERROR_STOP on
+begin;
+set role service_role;
+do $$
+declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();d uuid:=gen_random_uuid();e uuid:=gen_random_uuid();j uuid;l uuid;l2 uuid;x jsonb;stamp bigint:=extract(epoch from clock_timestamp())::bigint;digest bytea:=sha256('video-bytes'::bytea);
+begin
+ insert into worker_private.owners(id) values(a),(b);
+ insert into worker_private.devices(id,owner_id,public_key) values(d,a,decode(repeat('ea',91),'hex')),(e,b,decode(repeat('eb',91),'hex'));
+ assert (public.worker_media_submit(a,d,'pilot','v1:4:4:5:7')->>'status')::int=409;
+ assert public.worker_operation(d,gen_random_uuid(),stamp,'claim_v2')->>'claim'='';
+ assert (public.worker_media_submit(a,d,'pilot','v1:4:4:5:7')->>'status')::int=409;
+ assert (public.worker_media_permission(b,d,true)->>'status')::int=404;
+ assert (public.worker_media_permission(a,d,true)->>'media_enabled')::boolean;
+ assert (public.worker_media_submit(b,d,'pilot','v1:4:4:5:7')->>'status')::int=409;
+ assert (public.worker_media_submit(a,d,'bad','v1:10:10:10:10')->>'status')::int=400;
+ x:=public.worker_media_submit(a,d,'pilot','v1:4:4:5:7');assert (x->>'status')::int=201;j:=(x->>'job_id')::uuid;
+ assert (public.worker_media_submit(a,d,'pilot','v1:4:4:5:7')->>'job_id')::uuid=j;
+ assert (public.worker_media_submit(a,d,'pilot','v1:4:4:5:6')->>'status')::int=409;
+ assert (public.worker_submit(a,d,'pilot',convert_to('v1:4:4:5:7','UTF8'))->>'status')::int=409;
+ assert public.worker_operation(d,gen_random_uuid(),stamp,'claim')->>'claim'='';
+ x:=public.worker_operation(d,gen_random_uuid(),stamp,'claim_v2');l:=split_part(x->>'claim',E'\t',2)::uuid;
+ assert split_part(x->>'claim',E'\t',3)='media.animatic.render';
+ assert (public.worker_operation(d,gen_random_uuid(),stamp,'complete',j,l,digest)->>'status')::int=422;
+ assert (public.worker_media_write(e,gen_random_uuid(),stamp,j,l,0,'video-'::bytea,null,null)->>'status')::int=404;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,0,'video-'::bytea,null,null)->>'status')::int=200;
+ update worker_private.jobs set deadline=clock_timestamp()-interval '1 second' where id=j;
+ x:=public.worker_operation(d,gen_random_uuid(),stamp,'claim_v2');l2:=split_part(x->>'claim',E'\t',2)::uuid;assert l<>l2;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,1,'bytes'::bytea,null,null)->>'status')::int=409;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,1,'bytes'::bytea,null,null)->>'status')::int=200;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'status')::int=409;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,0,'video-'::bytea,null,null)->>'status')::int=200;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,0,'video-'::bytea,null,null)->>'status')::int=200;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,0,'wrong'::bytea,null,null)->>'status')::int=409;
+ assert public.worker_media_artifact(a,j,0) is null;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,sha256('wrong'::bytea))->>'status')::int=422;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'state')='completed';
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'state')='completed';
+ assert public.worker_media_artifact(b,j,0) is null;
+ assert public.worker_media_manifest(b,j) is null;
+ assert public.worker_media_manifest(a,j)->>'bytes'='11';
+ assert public.worker_media_manifest(a,j)->>'media_validity'='unverified';
+ assert decode(public.worker_media_artifact(a,j,0)->>'bytes_b64','base64')='video-'::bytea;
+ assert public.worker_media_artifact(a,j,1)->>'sha256'=encode(digest,'hex');
+ assert (public.worker_media_permission(a,d,false)->>'media_enabled')::boolean=false;
+ assert public.worker_media_artifact(a,j,1) is not null;
+ assert (public.worker_media_submit(a,d,'disabled','v1:4:4:5:7')->>'status')::int=409;
+ assert (public.worker_revoke(a,d)->>'status')::int=200;
+ assert public.worker_media_artifact(a,j,1) is not null;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'status')::int=401;
+ raise notice 'PASS: capability admission, legacy isolation, lease fencing, chunk retries, digest verification, owner isolation and durable result';
+end $$;
+reset role;
+do $$ begin
+ assert not has_function_privilege('authenticated','public.worker_media_artifact(uuid,uuid,integer)','EXECUTE');
+ assert not has_function_privilege('anon','public.worker_media_write(uuid,uuid,bigint,uuid,uuid,integer,bytea,integer,bytea)','EXECUTE');
+end $$;
+rollback;

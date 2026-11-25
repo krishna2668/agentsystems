@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.worker.test" android:versionCode="9" android:versionName="0.9-media-candidate">
+<uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/>
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"/>
+<application android:label="AgentSystems Worker" android:usesCleartextTraffic="false" android:allowBackup="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+<activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<service android:name=".WorkerService" android:exported="false" android:foregroundServiceType="dataSync|mediaProcessing"/>
+</application></manifest>
