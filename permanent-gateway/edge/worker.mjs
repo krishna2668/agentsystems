@@ -203,6 +203,8 @@ export async function dispatchOwner(env,id,method,path,raw){
       if(m&&method==="GET"){const r=await rpc(env,"worker_result",{p_owner:id,p_job:requireId(m[1])});need(r,404,"job not found");return response(200,r);}
       m=path.match(/^\/owner\/jobs\/([^/]+)\/artifact$/);
       if(m&&method==="GET"){const job=requireId(m[1]);const r=await rpc(env,"worker_media_manifest",{p_owner:id,p_job:job});need(r,404,"artifact unavailable");return response(200,{...r,preview_url:"https://gateway.example.invalid/artifacts/"+job,download_page:"https://gateway.example.invalid/workers?artifact="+job});}
+      m=path.match(/^\/owner\/jobs\/([^/]+)\/review-stills$/);
+      if(m&&method==="GET"){const r=await rpc(env,"worker_review_read",{p_owner:id,p_job:requireId(m[1])});need(r,404,"review unavailable");return response(200,r);}
       m=path.match(/^\/owner\/devices\/([^/]+)\/media-permission$/);
       if(m&&method==="POST"){const b=parse(raw);need(typeof b.enabled==="boolean",400,"invalid permission");return rpcReply(await rpc(env,"worker_media_permission",{p_owner:id,p_device:requireId(m[1]),p_enabled:b.enabled}));}
       m=path.match(/^\/owner\/jobs\/([^/]+)\/artifact\/(0|[1-9][0-9]?)$/);
@@ -254,7 +256,7 @@ export default {async fetch(req,env){
       return rpcReply(await rpc(env,"worker_enroll",{p_hash:"\\x"+await digest(enc.encode(b.code)),p_key:pgbytes(key)}));
     }
     if(path.startsWith("/worker/")&&method==="POST"){
-      const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish|reject_project)$/);
+      const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish|reject_project|review-stills)$/);
       const artifact=path.match(/^\/worker\/artifacts\/([^/]+)(?:\/(0|[1-9][0-9]?))?$/);
       need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/claim-v3"||path==="/worker/verify-connection"||m||artifact,404,"not found");
       const auth=await device(req,env,path,raw);
@@ -276,7 +278,14 @@ export default {async fetch(req,env){
         const r=await rpc(env,"worker_operation",{...auth,p_op:path.endsWith("-v3")?"claim_v3":path.endsWith("-v2")?"claim_v2":"claim"});
         if(r?.status===200){need(typeof r.claim==="string",503,"invalid claim response");return response(200,r.claim,true);}return rpcReply(r);
       }
-      const b=parse(raw),args={...auth,p_op:m[2],p_job:requireId(m[1]),p_lease:requireId(b.lease)};
+      const b=parse(raw),args={...auth,p_op:m[2],p_job:requireId(m[1])};
+      if(m[2]==="review-stills"){
+        need(typeof b.source_sha256==="string"&&HEX.test(b.source_sha256)&&typeof b.sha256==="string"&&HEX.test(b.sha256),400,"invalid review evidence");
+        const image=b64(b.image_b64,196608);need(image.length>=100&&image[0]===255&&image[1]===216&&image[2]===255&&image.at(-2)===255&&image.at(-1)===217,422,"invalid jpeg");
+        need(await digest(image)===b.sha256,422,"review digest mismatch");
+        return rpcReply(await rpc(env,"worker_review_write",{...auth,p_job:args.p_job,p_source:"\\x"+b.source_sha256,p_digest:"\\x"+b.sha256,p_image:pgbytes(image)}));
+      }
+      args.p_lease=requireId(b.lease);
       if(m[2]==="chunk"||m[2]==="finish"){
         const data={...auth,p_job:args.p_job,p_lease:args.p_lease,p_seq:null,p_bytes:null,p_count:null,p_digest:null};
         if(m[2]==="chunk"){need(Number.isInteger(b.seq)&&b.seq>=0&&b.seq<32,400,"invalid chunk");const bytes=b64(b.bytes_b64,65536);need(bytes.length>0,400,"empty chunk");data.p_seq=b.seq;data.p_bytes=pgbytes(bytes);}

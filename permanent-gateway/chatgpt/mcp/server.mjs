@@ -22,6 +22,17 @@ export async function verifyOwnerToken(auth,{authorize,jwks=createRemoteJWKSet(n
 }
 function json(value,status=200){return Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
 function authError(message){return {resultType:'complete',isError:true,content:[{type:'text',text:message}],_meta:{'mcp/www_authenticate':[challenge]}};}
+// MCP image blocks give the model actual pixels, not a URL or a base64 text dump.
+// Verify the bounded server-owned evidence before exposing it as an image.
+export async function reviewImage(data,job){
+ if(data?.job_id!==job||data?.mime_type!=='image/jpeg'||data?.frames!==6||typeof data.image_b64!=='string'||data.image_b64.length>Math.ceil(196608/3)*4||!/^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data.image_b64)||!/^[a-f0-9]{64}$/.test(data.sha256||'')||!/^[a-f0-9]{64}$/.test(data.source_sha256||''))throw Error('Invalid review evidence');
+ const bytes=Uint8Array.from(atob(data.image_b64),c=>c.charCodeAt(0));
+ if(bytes.length<100||bytes.length>196608||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255||bytes.at(-2)!==255||bytes.at(-1)!==217)throw Error('Invalid review image');
+ const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
+ if(hash!==data.sha256)throw Error('Review evidence digest mismatch');
+ const metadata={job_id:job,source_sha256:data.source_sha256,sha256:hash,frames:6,provenance:'signed_device_capture',creative_quality:'unreviewed'};
+ return {resultType:'complete',content:[{type:'image',mimeType:'image/jpeg',data:data.image_b64},{type:'text',text:JSON.stringify(metadata)}],structuredContent:{data:metadata}};
+}
 export async function serveMcp(req,env,host){
  const url=new URL(req.url);
  if(url.origin!==new URL(resource).origin)return json({error:'Invalid host'},400);
@@ -42,6 +53,7 @@ export async function serveMcp(req,env,host){
    try{
     const call=knowledgeDefinitions.some(t=>t.name===params.name)?executeKnowledgeTool:executeTool;
     const data=await call(params.name,params.arguments??{},adapter);
+    if(params.name==='inspect_video_frames')return await reviewImage(data,params.arguments?.job_id);
     return {resultType:'complete',content:[{type:'text',text:JSON.stringify(data)}],structuredContent:{data}};
    }catch{return {resultType:'complete',isError:true,content:[{type:'text',text:'Worker request rejected or unavailable.'}]};}
   });

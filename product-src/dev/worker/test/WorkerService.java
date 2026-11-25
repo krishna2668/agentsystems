@@ -101,6 +101,11 @@ public final class WorkerService extends Service {
       return response.getString("sha256");
      }
     },(spec,out)->AnimaticRenderer.render(spec,out,()->running&&(Build.VERSION.SDK_INT<29||getSystemService(PowerManager.class).getCurrentThermalStatus()<PowerManager.THERMAL_STATUS_SEVERE)));
+    ReviewSync review=new ReviewSync(getFilesDir().toPath(),p->ReviewFrameCapture.capture(p.toFile()),(job,source,digest,jpeg)->{
+      String body=new JSONObject().put("source_sha256",source).put("sha256",digest).put("image_b64",java.util.Base64.getEncoder().encodeToString(jpeg)).toString();
+      JSONObject reply=new JSONObject(signedPost(base,id,"/worker/jobs/"+job+"/review-stills",body));
+      if(!digest.equals(reply.optString("sha256")))throw new IOException("Review upload unconfirmed");
+    });
     if(hashFile.exists())result=hash.step();
     else if(media.pending()){
      try{result=media.step();}
@@ -124,6 +129,9 @@ public final class WorkerService extends Service {
       else{firstClaim[0]=c.legacy();result=hash.step();}
      }
     }else result=hash.step();
+    // Backfill previously completed media too. Review failure never reverses a
+    // confirmed render, and no screenshot is taken from the app's UI.
+    if(result==null){String reviewJob=review.step();if(reviewJob!=null)result="review:"+reviewJob;}
    }catch(Exception e){failure=e;}finally{busy.set(false);}
    final String completed=result;final Exception error=failure;
    handler.post(()->finished(completed,error));
@@ -137,7 +145,7 @@ public final class WorkerService extends Service {
   if(!running)return;
   if(e==null){
    prefs.edit().remove("authorization_blocked").apply();failures=0;if(result==null){if(idleSince==0)idleSince=SystemClock.elapsedRealtime();status("Queue idle · checking briefly");schedule(3000);}
-   else{idleSince=0;status(result.startsWith("blocked:")?"Project revision blocked · local project unavailable":"Result stored · "+result);schedule(1000);}return;
+   else{idleSince=0;status(result.startsWith("blocked:")?"Project revision blocked · local project unavailable":result.startsWith("review:")?"Visual review ready · original video retained":"Result stored · "+result);schedule(1000);}return;
   }
   boolean blocked=false;
   if(e instanceof MainActivity.HttpFailure){int c=((MainActivity.HttpFailure)e).code;if(c==401||c==403)prefs.edit().putBoolean("authorization_blocked",true).apply();blocked=c==401||c==403||c==404||c==409||c==422;}

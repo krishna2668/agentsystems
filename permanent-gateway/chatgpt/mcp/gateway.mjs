@@ -28,7 +28,7 @@ export function appLinkResponse(path,method,search,fingerprint=androidFingerprin
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' "+authProject+"; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"};
 export function allowedMcpRoute(method,path){
- return (method==='GET'&&(path==='/owner/devices'||/^\/owner\/projects\/[0-9a-f-]{36}$/.test(path)||/^\/owner\/jobs\/[0-9a-f-]{36}(?:\/artifact)?$/.test(path)))||
+ return (method==='GET'&&(path==='/owner/devices'||/^\/owner\/projects\/[0-9a-f-]{36}$/.test(path)||/^\/owner\/jobs\/[0-9a-f-]{36}(?:\/artifact|\/review-stills)?$/.test(path)))||
  (method==='POST'&&['/owner/enrollments/lookup','/owner/jobs','/owner/projects','/owner/knowledge/profiles','/owner/knowledge/context','/owner/knowledge/history','/owner/knowledge/observations','/owner/knowledge/job-evidence','/owner/knowledge/proposals'].includes(path));
 }
 function authProblem(status,code){return Object.assign(new Error(code),{status,code});}

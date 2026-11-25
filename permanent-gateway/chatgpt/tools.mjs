@@ -18,6 +18,7 @@ export const definitions=Object.freeze([
  {name:"edit_pilot_notice",description:"Set the notice reaction on an existing pilot project and render the next revision. Requires the current completed base revision. Reuse key on exact retry.",inputSchema:schema({device_id:idSchema,project_id:idSchema,idempotency_key:{type:"string",minLength:1,maxLength:128},expected_revision:{type:"integer",minimum:1,maximum:15},enabled:{type:"boolean"}},["device_id","project_id","idempotency_key","expected_revision","enabled"]),annotations:meta(false,true)},
  {name:"read_pilot_project",description:"Read latest submitted pilot revision, status, and render job reference. Does not assert creative quality.",inputSchema:schema({project_id:idSchema},["project_id"]),annotations:meta(true,true)},
  {name:"get_media_artifact",description:"Retrieve the integrity manifest, native Android preview URL and authenticated browser fallback for a completed media job. Does not return raw media as model text or assert creative quality.",inputSchema:schema({job_id:idSchema},["job_id"]),annotations:meta(true,true)},
+ {name:"inspect_video_frames",description:"Receive an authenticated six-frame JPEG contact sheet captured by the enrolled Android Worker from its completed animation. The image is visible to ChatGPT for visual critique; sampling cannot establish full motion, sound, or creative quality.",inputSchema:schema({job_id:idSchema},["job_id"]),annotations:meta(true,true)},
  {name:"get_worker_result",description:"Retrieve the durable status and verified result of a previously submitted job.",inputSchema:schema({job_id:idSchema},["job_id"]),annotations:meta(true,true)}
 ]);
 function fail(message){throw new Error(message);}
@@ -74,6 +75,9 @@ export async function executeTool(name,args,host){
   }
   case "get_media_artifact":{
    keys(args,["job_id"]);return host.ownerRequest("GET","/owner/jobs/"+uuid(args.job_id)+"/artifact");
+  }
+  case "inspect_video_frames":{
+   keys(args,["job_id"]);return host.ownerRequest("GET","/owner/jobs/"+uuid(args.job_id)+"/review-stills");
   }
   case "get_worker_result":{
    keys(args,["job_id"]);return host.ownerRequest("GET","/owner/jobs/"+uuid(args.job_id));

@@ -16,7 +16,7 @@ function fixture(options={}){
  return {host,calls};
 }
 test("tool registry contains no administrator or credential tools",()=>{
- assert.equal(definitions.length,10);
+ assert.equal(definitions.length,11);
  assert.ok(definitions.every(t=>t.inputSchema.additionalProperties===false));
  assert.equal(definitions.find(t=>t.name==="approve_worker_request").annotations.readOnlyHint,false);
 });
