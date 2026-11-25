@@ -103,7 +103,7 @@ async function loadWorkers(){
  else for(const d of r.devices){
    const line=document.createElement('p');line.textContent='Worker '+String(d.id).slice(0,8)+' · '+(d.revoked?'Revoked':'Registered');
    $('workerList').append(line);
-   if(!d.revoked&&uuid.test(d.id)&&(d.media_version===1||d.media_enabled)){
+   if(!d.revoked&&uuid.test(d.id)&&(d.media_version===1||d.media_version===2||d.media_enabled)){
     const media=document.createElement('button');media.type='button';media.className='secondary';media.textContent=d.media_enabled?'Disable media jobs':'Allow media jobs';
     media.addEventListener('click',()=>void action(async()=>{
      const enabled=!d.media_enabled;

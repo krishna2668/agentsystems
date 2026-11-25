@@ -17,11 +17,13 @@ public final class MediaExecutionTest {
   MediaExecution m=new MediaExecution(dir,remote,render);m.save(new MediaExecution.Claim(job+"\t"+lease+"\t"+MediaExecution.CAPABILITY+"\t"+input));
   try{m.step();throw new AssertionError();}catch(IOException e){if(!e.getMessage().equals("network interrupted"))throw e;}
   if(!m.pending()||renders[0]!=1)throw new AssertionError("checkpoint lost");
+  Path preview=new LocalPreview(dir).latest();if(preview==null||!Arrays.equals(Files.readAllBytes(preview),bytes))throw new AssertionError("offline preview lost");
   m=new MediaExecution(dir,remote,render);
   try{m.step();throw new AssertionError();}catch(IOException e){if(!e.getMessage().equals("confirmation lost"))throw e;}
   if(!m.pending()||renders[0]!=1||!complete[0])throw new AssertionError("rerender or missing artifact");
   m=new MediaExecution(dir,remote,render);
   if(!job.equals(m.step())||m.pending()||renders[0]!=1||writes[0]!=4)throw new AssertionError("recovery");
-  System.out.println("PASS: interrupted chunk, lost completion, restart and single render");
+  if(!preview.equals(new LocalPreview(dir).latest())||!Arrays.equals(Files.readAllBytes(preview),bytes))throw new AssertionError("completed preview lost");
+  System.out.println("PASS: interrupted chunk, lost completion, restart, single render and retained preview");
  }
 }

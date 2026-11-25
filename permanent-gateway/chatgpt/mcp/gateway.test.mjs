@@ -134,3 +134,10 @@ test('media manifest delegated, raw artifact and capability permission not deleg
  assert.equal(allowedMcpRoute('GET','/owner/jobs/'+session+'/artifact/0'),false);
  assert.equal(allowedMcpRoute('POST','/owner/devices/'+session+'/media-permission'),false);
 });
+
+test('pilot project routes delegated narrowly',()=>{
+ assert.equal(allowedMcpRoute('POST','/owner/projects'),true);
+ assert.equal(allowedMcpRoute('GET','/owner/projects/'+session),true);
+ assert.equal(allowedMcpRoute('DELETE','/owner/projects/'+session),false);
+ assert.equal(allowedMcpRoute('POST','/owner/projects/'+session),false);
+});

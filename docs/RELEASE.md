@@ -50,3 +50,7 @@ signing certificate; never uninstall or clear data. Verify the same
 device ID and a completed job on the new origin before retiring the old
 gateway. A failed verification preserves the old address; a storage
 failure is not a verified connection.
+
+## Editable pilot candidate
+
+Apply the new pilot-project migration before activating a gateway that exposes project commands. It preserves legacy media jobs and adds signed claim-v3 admission for the new project-capable Worker. Then verify gateway readiness and existing operations, install an in-place compatible Android candidate, and verify its reported media version 2. Media permission remains an explicit account action. Exercise create, render, edit, render, readback, and local playback on the enrolled device; do not report creative acceptance based only on job completion or digest verification. No existing media job or project revision is silently deleted. The old app cannot claim project work; downgrading during a pending project is not an accepted recovery procedure.

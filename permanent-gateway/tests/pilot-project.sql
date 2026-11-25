@@ -1,0 +1,41 @@
+\set ON_ERROR_STOP on
+begin;
+set role service_role;
+do $$
+declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); d uuid:=gen_random_uuid(); e uuid:=gen_random_uuid(); p uuid:=gen_random_uuid(); q uuid:=gen_random_uuid(); j uuid; k uuid; l uuid; x jsonb; stamp bigint:=extract(epoch from clock_timestamp())::bigint; artifact bytea:='preview'::bytea;
+begin
+ insert into worker_private.owners(id) values(a),(b);
+ insert into worker_private.devices(id,owner_id,public_key) values(d,a,decode(repeat('af',91),'hex')),(e,b,decode(repeat('ae',91),'hex'));
+ assert (public.worker_media_permission(a,d,true)->>'media_enabled')::boolean;
+ perform public.worker_operation(d,gen_random_uuid(),stamp,'claim_v2');
+ assert (public.worker_project_submit(a,d,'p',p,0,'v1:2:3:4:5',null)->>'status')::int=409;
+ perform public.worker_operation(d,gen_random_uuid(),stamp,'claim_v3');
+ assert (public.worker_project_submit(a,d,'bad',p,0,'v1:10:10:10:10',null)->>'status')::int=400;
+ assert (public.worker_project_submit(b,d,'foreign',p,0,'v1:2:3:4:5',null)->>'status')::int=409;
+ x:=public.worker_project_submit(a,d,'p',p,0,'v1:2:3:4:5',null);assert (x->>'status')::int=201;j:=(x->>'job_id')::uuid;
+ assert (public.worker_project_submit(a,d,'p',p,0,'v1:2:3:4:5',null)->>'job_id')::uuid=j;
+ assert (public.worker_project_submit(a,d,'p',p,0,'v1:2:3:4:6',null)->>'status')::int=409;
+ assert (public.worker_project_submit(a,d,'premature',p,1,null,true)->>'status')::int=409;
+ assert public.worker_operation(d,gen_random_uuid(),stamp,'claim_v2')->>'claim'='';
+ x:=public.worker_operation(d,gen_random_uuid(),stamp,'claim_v3');l:=split_part(x->>'claim',E'\t',2)::uuid;
+ assert convert_from(decode(split_part(x->>'claim',E'\t',4),'base64'),'UTF8')='p1:'||p::text||':0:2:3:4:5';
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,0,artifact,null,null)->>'status')::int=200;
+ assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,null,null,1,sha256(artifact))->>'state')='completed';
+ assert public.worker_project_read(b,p) is null;
+ assert public.worker_project_read(a,p)->>'status'='completed';
+ x:=public.worker_project_submit(a,d,'edit',p,1,null,true);assert (x->>'status')::int=201;k:=(x->>'job_id')::uuid;
+ assert (public.worker_project_submit(a,d,'stale',p,1,null,false)->>'status')::int=409;
+ x:=public.worker_operation(d,gen_random_uuid(),stamp,'claim_v3');l:=split_part(x->>'claim',E'\t',2)::uuid;
+ assert convert_from(decode(split_part(x->>'claim',E'\t',4),'base64'),'UTF8')='p1:'||p::text||':1:1';
+ assert (public.worker_operation(e,gen_random_uuid(),stamp,'reject_project',k,l)->>'status')::int=404;
+ assert (public.worker_operation(d,gen_random_uuid(),stamp,'reject_project',k,l)->>'state')='blocked';
+ assert (public.worker_operation(d,gen_random_uuid(),stamp,'recover',k,l)->>'state')='blocked';
+ assert public.worker_project_read(a,p)->>'failure'='local_project_unavailable';
+ assert public.worker_media_manifest(a,j) is not null;
+ assert (public.worker_project_submit(a,d,'new',q,0,'v1:2:3:4:5',null)->>'status')::int=201;
+ assert public.worker_operation(d,gen_random_uuid(),stamp,'claim_v3')->>'claim'<>'';
+ raise notice 'PASS: project admission, compatibility, replay, stale edit, signed rejection, owner isolation and queue continuation';
+end $$;
+reset role;
+do $$ begin assert not has_function_privilege('authenticated','public.worker_project_submit(uuid,uuid,text,uuid,integer,text,boolean)','EXECUTE'); end $$;
+rollback;
