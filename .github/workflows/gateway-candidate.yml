@@ -1,6 +1,11 @@
 name: Gateway candidate
 on:
   workflow_dispatch:
+    inputs:
+      upload_candidate:
+        description: 'Upload candidate only after initialization (false = read-only preflight)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -38,7 +43,14 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+      - name: Check deployment target and permission boundary
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_WORKER_NAME: ${{ secrets.CLOUDFLARE_WORKER_NAME }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/cloudflare-preflight.mjs
       - name: Configure isolated release checkout
+        if: inputs.upload_candidate
         env:
           GATEWAY_ORIGIN: ${{ secrets.GATEWAY_ORIGIN }}
           SUPABASE_ORIGIN: ${{ secrets.SUPABASE_ORIGIN }}
@@ -46,7 +58,9 @@ jobs:
           test -n "$GATEWAY_ORIGIN" && test -n "$SUPABASE_ORIGIN"
           python3 scripts/configure-deployment.py --gateway "$GATEWAY_ORIGIN" --supabase "$SUPABASE_ORIGIN"
       - run: bash scripts/build-gateway.sh
+        if: inputs.upload_candidate
       - name: Upload immutable Cloudflare candidate
+        if: inputs.upload_candidate
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_WORKER_NAME: ${{ secrets.CLOUDFLARE_WORKER_NAME }}
