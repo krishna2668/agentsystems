@@ -13,6 +13,7 @@ def origin(value):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--gateway', type=origin, required=True)
+parser.add_argument('--previous-gateway', type=origin, help='Exact previous origin for a reviewed forward-only cutover migration')
 parser.add_argument('--supabase', type=origin, required=True)
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
@@ -21,7 +22,7 @@ for folder in ('permanent-gateway', 'product-src'):
     for p in (root/folder).rglob('*'):
         if p.is_file() and p.suffix in {'.mjs','.sql','.java'} and 'node_modules' not in p.parts and 'bundle' not in p.name and p.name != 'consent-assets.mjs':
             s = p.read_text()
-            t = s.replace('https://gateway.example.invalid',args.gateway).replace('https://example.supabase.co',args.supabase)
+            t = s.replace('https://previous-gateway.example.invalid',args.previous_gateway or args.gateway).replace('https://gateway.example.invalid',args.gateway).replace('https://example.supabase.co',args.supabase)
             if t != s:
                 files.append((p,t))
 if not files:

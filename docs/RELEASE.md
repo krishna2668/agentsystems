@@ -29,3 +29,13 @@ A Worker name and account subdomain jointly determine its origin. Changing eithe
 - Preserve enrolled device keys and IDs; require a tested, explicit origin transition before redirecting devices. Never erase a pending job checkpoint to force reconnection.
 - Verify direct login, OAuth, signed device execution, artifact retrieval and recovery before retiring the previous gateway. Record rollback steps. Do not delete the previous Worker automatically.
 - An account-level deploy token can affect other Workers within that account unless narrower resource scoping is supported. Prefer the narrowest available scope, an explicit script target, environment approval, and short-lived credentials. Account separation remains optional; monitor shared usage and do not purchase capacity without approval.
+
+For a gateway origin transition, configure a disposable checkout with both
+`--gateway <new-origin>` and `--previous-gateway <old-origin>`. Apply only
+the new reviewed transition migration to the existing database. It preserves
+old grants and permits a distinct client grant for the new exact audience.
+Do not reuse a client ID for a different audience. A fresh installation can
+omit the previous origin. Supabase Auth's Site URL plus its authorization
+path determines the consent page; switch that URL only after the new gateway
+is initialized and ready, preserving the prior settings for rollback.
+The transition SQL alone does not move devices or change Auth configuration.
