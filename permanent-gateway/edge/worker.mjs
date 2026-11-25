@@ -246,9 +246,15 @@ export default {async fetch(req,env){
     }
     if(path.startsWith("/worker/")&&method==="POST"){
       const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish)$/);
-      need(path==="/worker/claim"||path==="/worker/claim-v2"||m,404,"not found");
+      need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/verify-connection"||m,404,"not found");
       const auth=await device(req,env,path,raw);
       await limit(env,"device:"+auth.p_device);
+      if(path==="/worker/verify-connection"){
+        const b=parse(raw);
+        need(b.origin===url.origin&&typeof b.challenge==="string"&&UUID.test(b.challenge),400,"invalid connection challenge");
+        // Read-only proof: no claim, lease, identity or checkpoint mutation.
+        return response(200,{status:"verified",device_id:auth.p_device,origin:url.origin,challenge:b.challenge});
+      }
       if(path==="/worker/claim"||path==="/worker/claim-v2"){
         const r=await rpc(env,"worker_operation",{...auth,p_op:path.endsWith("-v2")?"claim_v2":"claim"});
         if(r?.status===200){need(typeof r.claim==="string",503,"invalid claim response");return response(200,r.claim,true);}return rpcReply(r);

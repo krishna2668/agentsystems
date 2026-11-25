@@ -14,6 +14,6 @@ with zipfile.ZipFile('product-build/unsigned.apk','a') as z:z.write('product-bui
 PY
 "$bt/zipalign" -f 4 product-build/unsigned.apk product-build/aligned.apk
 key="${TEST_KEYSTORE:-$HOME/.android/debug.keystore}"
-"$bt/apksigner" sign --ks "$key" --ks-pass pass:android --key-pass pass:android --out product-build/worker-0.9-media-candidate.apk product-build/aligned.apk
-"$bt/apksigner" verify --verbose product-build/worker-0.9-media-candidate.apk
-"$bt/aapt2" dump badging product-build/worker-0.9-media-candidate.apk | head -12
+"$bt/apksigner" sign --ks "$key" --ks-pass pass:android --key-pass pass:android --out product-build/worker-0.10-transition-candidate.apk product-build/aligned.apk
+"$bt/apksigner" verify --verbose product-build/worker-0.10-transition-candidate.apk
+"$bt/aapt2" dump badging product-build/worker-0.10-transition-candidate.apk | head -12
