@@ -48,6 +48,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_WORKER_NAME: ${{ secrets.CLOUDFLARE_WORKER_NAME }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_DENIED_WORKER: ${{ vars.CLOUDFLARE_DENIED_WORKER }}
         run: node scripts/cloudflare-preflight.mjs
       - name: Configure isolated release checkout
         if: inputs.upload_candidate
