@@ -48,6 +48,8 @@ globalThis.fetch=async(url,opts)=>{
     case "worker_media_manifest":return j({job_id:job,sha256:sha("video"),bytes:5,chunks:1,integrity:"verified",media_validity:"unverified"});
     case "worker_media_permission":return j({status:200,media_enabled:a.p_enabled});
     case "worker_media_artifact":return j({sha256:sha("video"),seq:a.p_seq,bytes_b64:"dmlkZW8=",chunks:1});
+    case "worker_review_write":return j({status:201,sha256:a.p_digest.slice(2)});
+    case "worker_review_read":return j({job_id:job,source_sha256:sha("video"),sha256:sha("review"),mime_type:"image/jpeg",frames:6,image_b64:""});
     case "worker_result":return j(a.p_job==="00000000-0000-0000-0000-000000000000"?null:{job_id:job,status:"completed",sha256:sha("hello")});
     case "worker_operation":
       if(used.has(a.p_nonce))return j({status:409});
@@ -120,6 +122,20 @@ test("oversized streamed body, query and unsupported capability rejected",async(
  const r=await run("/pair",{method:"POST",body:"a".repeat(400001)});assert.equal(r.status,413);
  assert.equal((await run("/health?ignored=1")).status,400);
  assert.equal((await post("/owner/jobs",{capability:"shell"},{Authorization:goodToken})).status,400);
+});
+test('visual review upload requires a signed device and serves only authenticated owner',async()=>{
+ const path='/worker/jobs/'+job+'/review-stills';
+ const jpeg=Buffer.concat([Buffer.from('ffd8ff','hex'),Buffer.alloc(100,33),Buffer.from('ffd9','hex')]);
+ const body=JSON.stringify({source_sha256:sha('video'),sha256:sha(jpeg),image_b64:jpeg.toString('base64')});
+ calls=[];let r=await run(path,{method:'POST',headers:signed(path,body),body});assert.equal(r.status,201);
+ assert.equal((await r.json()).sha256,sha(jpeg));assert.equal(calls.at(-1).args.p_source,'\\x'+sha('video'));
+ calls=[];r=await run(path,{method:'POST',body});assert.equal(r.status,401);assert.equal(calls.length,0);
+ const wrong=JSON.stringify({...JSON.parse(body),sha256:sha('wrong')});
+ r=await run(path,{method:'POST',headers:signed(path,wrong),body:wrong});assert.equal(r.status,422);
+ const read='/owner/jobs/'+job+'/review-stills';
+ r=await run(read);assert.equal(r.status,401);
+ r=await run(read,{headers:{Authorization:goodToken}});assert.equal(r.status,200);
+ assert.equal((await r.json()).frames,6);assert.equal(calls.at(-1).args.p_owner,env.OWNER_ID);
 });
 
 test("limiter fails closed before upstream work",async()=>{

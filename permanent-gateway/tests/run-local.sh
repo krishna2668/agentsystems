@@ -55,6 +55,9 @@ psql -X -v ON_ERROR_STOP=1 -f tests/oauth-transition.sql
 psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_pilot_project.sql' | head -1)"
 psql -X -v ON_ERROR_STOP=1 -f tests/pilot-project.sql
 
+psql -X -v ON_ERROR_STOP=1 -f "$(find supabase/migrations -name '*_review_stills.sql' | head -1)"
+psql -X -v ON_ERROR_STOP=1 -f tests/review-stills.sql
+
 # Optional actual pilot artifact, never downloaded or required for the SQL unit suite.
 if [[ -f ../production-pilot/pilot.mp4 ]]; then
  python3 tests/media-roundtrip.py ../production-pilot/pilot.mp4

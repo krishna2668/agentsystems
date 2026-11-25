@@ -131,6 +131,7 @@ test('Worker management is served securely; approval requires direct user sessio
 
 test('media manifest delegated, raw artifact and capability permission not delegated',()=>{
  assert.equal(allowedMcpRoute('GET','/owner/jobs/'+session+'/artifact'),true);
+ assert.equal(allowedMcpRoute('GET','/owner/jobs/'+session+'/review-stills'),true);
  assert.equal(allowedMcpRoute('GET','/owner/jobs/'+session+'/artifact/0'),false);
  assert.equal(allowedMcpRoute('POST','/owner/devices/'+session+'/media-permission'),false);
 });
