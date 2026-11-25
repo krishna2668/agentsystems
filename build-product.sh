@@ -12,7 +12,7 @@ if grep -q 'https://gateway.example.invalid' product-src/dev/worker/test/MainAct
 fi
 ./gradlew --no-daemon :android-app:assembleDebug
 mkdir -p product-build
-apk=product-build/agentsystems-0.12-editable-pilot-candidate.apk
+apk=product-build/agentsystems-0.13-visual-review-candidate.apk
 cp android-app/build/outputs/apk/debug/android-app-debug.apk "$apk"
 "$bt/apksigner" verify --verbose --print-certs "$apk"
 sha256sum "$apk"
