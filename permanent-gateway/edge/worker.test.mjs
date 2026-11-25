@@ -219,3 +219,16 @@ test("media submission, signed v2 claim, bounded chunks and owner retrieval",asy
  r=await run("/owner/jobs/"+job+"/artifact/0",{headers});assert.equal(r.status,200);assert.equal((await r.json()).bytes_b64,"dmlkZW8=");
  assert.equal((await run("/owner/jobs/"+job+"/artifact/0")).status,401);
 });
+
+test("origin transition verifies existing identity without claiming work",async()=>{
+ const path="/worker/verify-connection", challenge=randomUUID(), body=JSON.stringify({origin:"https://edge.example",challenge});
+ calls=[];
+ const r=await run(path,{method:"POST",headers:signed(path,body),body});
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),{status:"verified",device_id:dev,origin:"https://edge.example",challenge});
+ assert.deepEqual(calls.map(c=>c.path),["/rest/v1/rpc/worker_key"]);
+ assert.equal((await run(path,{method:"POST",headers:signed(path,body,other.privateKey),body})).status,401);
+ const wrong=JSON.stringify({origin:"https://other.example",challenge});
+ assert.equal((await run(path,{method:"POST",headers:signed(path,wrong),body:wrong})).status,400);
+ assert.equal((await run(path,{method:"POST",headers:signed(path,body,pair.privateKey,String(Math.floor(Date.now()/1000)),randomUUID(),randomUUID()),body})).status,401);
+});

@@ -39,3 +39,14 @@ omit the previous origin. Supabase Auth's Site URL plus its authorization
 path determines the consent page; switch that URL only after the new gateway
 is initialized and ready, preserving the prior settings for rollback.
 The transition SQL alone does not move devices or change Auth configuration.
+
+The Android transition candidate uses a release-configured previous origin
+and an explicit Update connection action. The new gateway must already
+support the signed, read-only /worker/verify-connection endpoint. The
+response must match the existing device ID, target origin, and fresh
+challenge before the app persists its new address. No enrollment or job
+claim occurs during verification. Install in place with the same test
+signing certificate; never uninstall or clear data. Verify the same
+device ID and a completed job on the new origin before retiring the old
+gateway. A failed verification preserves the old address; a storage
+failure is not a verified connection.

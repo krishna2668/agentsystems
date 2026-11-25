@@ -22,6 +22,8 @@ import org.json.JSONObject;
 public final class MainActivity extends Activity {
  private static final String ALIAS="worker-test-v04";
  private static final String GATEWAY="https://gateway.example.invalid";
+ private static final String PREVIOUS_GATEWAY="https://previous-gateway.example.invalid";
+ private static final java.util.concurrent.atomic.AtomicBoolean TRANSITIONING=new java.util.concurrent.atomic.AtomicBoolean();
  private static final String ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
  private static final ExecutorService executor=Executors.newSingleThreadExecutor();
  private SharedPreferences prefs;
@@ -54,7 +56,7 @@ public final class MainActivity extends Activity {
    heading=text(root,28);description=text(root,16);status=text(root,16);displayCode=text(root,26);
    displayCode.setTextIsSelectable(true);
    connect=button(root,"Connect this Worker");copy=button(root,"Copy request code");run=button(root,"Start worker");
-   connect.setOnClickListener(v->request(true));
+   connect.setOnClickListener(v->{if(legacy())transition();else request(true);});
    copy.setOnClickListener(v->{if(!prefs.contains("request_id")||!prefs.getBoolean("request_registered",false)||paired())return;
      if(prefs.getLong("request_expiry",0)<=System.currentTimeMillis()/1000)return;
      android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
@@ -85,22 +87,46 @@ public final class MainActivity extends Activity {
  }
  private boolean paired(){return prefs.contains("id")&&GATEWAY.equals(prefs.getString("base",""));}
  private boolean legacy(){return prefs.contains("id")&&!paired();}
+ private boolean canTransition(){return legacy()&&OriginTransition.allowed(prefs.getString("base",""),PREVIOUS_GATEWAY,GATEWAY);}
+ private void transition(){
+   if(busy||!canTransition()||!WorkerService.quiescent()||!TRANSITIONING.compareAndSet(false,true))return;
+   final String prior=prefs.getString("base",""),id=prefs.getString("id",""),challenge=UUID.randomUUID().toString();
+   busy=true;refresh();
+   executor.execute(()->{
+     String message="Connection not confirmed · existing connection preserved";
+     try{
+       String body=new JSONObject().put("origin",GATEWAY).put("challenge",challenge).toString();
+       JSONObject r=new JSONObject(post(GATEWAY,"/worker/verify-connection",body,id));
+       if(!OriginTransition.verified(id,GATEWAY,challenge,r.optString("status"),r.optString("device_id"),r.optString("origin"),r.optString("challenge")))throw new IOException("Connection proof mismatch");
+       if(!WorkerService.quiescent()||!prior.equals(prefs.getString("base",""))||!id.equals(prefs.getString("id","")))throw new IOException("Connection changed");
+       if(!prefs.edit().putString("base",GATEWAY).remove("authorization_blocked").putString("service_status","Connection verified · ready").commit()){
+         // SharedPreferences may update memory before a failed disk write. Restore
+         // the prior address and report uncertainty instead of permitting work.
+         boolean restored=prefs.edit().putString("base",prior).commit();
+         message=restored?"Connection not saved · existing connection preserved":"Connection storage unconfirmed · restart before continuing";
+       }else message="Connection verified · ready";
+     }catch(Exception ignored){}
+     finally{TRANSITIONING.set(false);}
+     prefs.edit().putString("service_status",message).apply();
+     runOnUiThread(()->{busy=false;if(!isDestroyed())refresh();});
+   });
+ }
  private static String formatCode(String code){return code.length()==12?code.substring(0,4)+"-"+code.substring(4,8)+"-"+code.substring(8):"";}
  private void refresh(){
    boolean connected=paired(), pending=prefs.contains("request_id"), registered=prefs.getBoolean("request_registered",false);
    long remaining=prefs.getLong("request_expiry",0)-System.currentTimeMillis()/1000;
-   heading.setText(connected?(prefs.getBoolean("authorization_blocked",false)?"Authorization blocked":"Worker connected"):"Connect a Worker");
-   description.setText(connected?"This device receives authorized work from your system.":legacy()?"An existing connection uses a different gateway. It has not been changed.":pending?"Authorize this device on the Workers page. The connection completes automatically.":"Request a connection to your system.");
+   heading.setText(connected?(prefs.getBoolean("authorization_blocked",false)?"Authorization blocked":"Worker connected"):canTransition()?"Update connection":"Connect a Worker");
+   description.setText(connected?"This device receives authorized work from your system.":legacy()?(canTransition()?"Verify the new gateway to keep your existing Worker connection and saved work.":"An existing connection uses a different gateway. It has not been changed."):pending?"Authorize this device on the Workers page. The connection completes automatically.":"Request a connection to your system.");
    String saved=prefs.getString("service_status","");
    status.setText(connected?(WorkerService.active?saved:"Not running"+(saved.isEmpty()?"":" · "+saved)):
      pending&&registered&&remaining>0?(saved.startsWith("Connection")?saved:"Waiting for authorization · "+((remaining+59)/60)+" min remaining"):pending?(busy?"Requesting connection…":saved.isEmpty()?"Checking request…":saved):saved.isEmpty()?"Not connected":saved);
-   boolean show=pending&&registered&&remaining>0&&!connected;
+   boolean show=pending&&registered&&remaining>0&&!connected&&!legacy();
    displayCode.setVisibility(show?android.view.View.VISIBLE:android.view.View.GONE);
    displayCode.setText(show?formatCode(prefs.getString("request_code","")):"");
    copy.setVisibility(show?android.view.View.VISIBLE:android.view.View.GONE);
-   connect.setVisibility(!connected&&!legacy()?android.view.View.VISIBLE:android.view.View.GONE);
-   connect.setEnabled(!busy);connect.setText(pending?"Check connection":"Connect this Worker");
-   run.setVisibility(connected?android.view.View.VISIBLE:android.view.View.GONE);
+   connect.setVisibility(!connected&&(!legacy()||canTransition())?android.view.View.VISIBLE:android.view.View.GONE);
+   connect.setEnabled(!busy&&(!legacy()||(WorkerService.quiescent()&&!TRANSITIONING.get())));connect.setText(canTransition()?(TRANSITIONING.get()?"Verifying connection…":"Update connection"):pending?"Check connection":"Connect this Worker");
+   run.setVisibility(connected||WorkerService.active?android.view.View.VISIBLE:android.view.View.GONE);
    run.setText(WorkerService.active?"Pause worker":prefs.getBoolean("authorization_blocked",false)?"Check authorization":"Start worker");
  }
  private void request(boolean manual){

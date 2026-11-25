@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.worker.test" android:versionCode="9" android:versionName="0.9-media-candidate">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.worker.test" android:versionCode="10" android:versionName="0.10-transition-candidate">
 <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/>
 <uses-permission android:name="android.permission.INTERNET"/>
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>

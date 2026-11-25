@@ -22,6 +22,7 @@ public final class WorkerService extends Service {
  private volatile boolean running=false;
  private int failures=0;
  private long started,idleSince;
+ static boolean quiescent(){return !active&&!busy.get();}
  static void requestPause(Context c){
   c.getSharedPreferences("worker_v04",MODE_PRIVATE).edit().putString("service_status","Paused · saved work retained").apply();
   c.stopService(new Intent(c,WorkerService.class));
