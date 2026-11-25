@@ -31,3 +31,7 @@ jobs:
         run: /usr/bin/python3 production-pilot/render.py
       - name: Verify
         run: bash scripts/test.sh
+      - name: Compile native Android Companion
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          ./gradlew --no-daemon :android-app:assembleDebug

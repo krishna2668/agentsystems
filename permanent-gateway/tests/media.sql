@@ -2,7 +2,7 @@
 begin;
 set role service_role;
 do $$
-declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();d uuid:=gen_random_uuid();e uuid:=gen_random_uuid();j uuid;l uuid;l2 uuid;x jsonb;stamp bigint:=extract(epoch from clock_timestamp())::bigint;digest bytea:=sha256('video-bytes'::bytea);
+declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();d uuid:=gen_random_uuid();e uuid:=gen_random_uuid();j uuid;l uuid;n uuid:=gen_random_uuid();same_owner uuid:=gen_random_uuid();l2 uuid;x jsonb;stamp bigint:=extract(epoch from clock_timestamp())::bigint;digest bytea:=sha256('video-bytes'::bytea);
 begin
  insert into worker_private.owners(id) values(a),(b);
  insert into worker_private.devices(id,owner_id,public_key) values(d,a,decode(repeat('ea',91),'hex')),(e,b,decode(repeat('eb',91),'hex'));
@@ -32,6 +32,7 @@ begin
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,0,'video-'::bytea,null,null)->>'status')::int=200;
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,0,'wrong'::bytea,null,null)->>'status')::int=409;
  assert public.worker_media_artifact(a,j,0) is null;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,null)->>'status')::int=404;
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,sha256('wrong'::bytea))->>'status')::int=422;
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'state')='completed';
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'state')='completed';
@@ -41,16 +42,25 @@ begin
  assert public.worker_media_manifest(a,j)->>'media_validity'='unverified';
  assert decode(public.worker_media_artifact(a,j,0)->>'bytes_b64','base64')='video-'::bytea;
  assert public.worker_media_artifact(a,j,1)->>'sha256'=encode(digest,'hex');
+ insert into worker_private.devices(id,owner_id,public_key,media_version,media_enabled) values(same_owner,a,decode(repeat('ec',91),'hex'),1,true);
+ assert (public.worker_device_artifact(d,n,stamp,j,null)->'artifact'->>'bytes')::int=11;
+ assert (public.worker_device_artifact(d,n,stamp,j,null)->>'status')::int=409;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,1)->'artifact'->>'sha256')=encode(digest,'hex');
+ assert (public.worker_device_artifact(same_owner,gen_random_uuid(),stamp,j,null)->>'status')::int=404;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp-300,j,null)->>'status')::int=401;
  assert (public.worker_media_permission(a,d,false)->>'media_enabled')::boolean=false;
  assert public.worker_media_artifact(a,j,1) is not null;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,null)->>'status')::int in (401,403);
  assert (public.worker_media_submit(a,d,'disabled','v1:4:4:5:7')->>'status')::int=409;
  assert (public.worker_revoke(a,d)->>'status')::int=200;
  assert public.worker_media_artifact(a,j,1) is not null;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,null)->>'status')::int in (401,403);
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l2,null,null,2,digest)->>'status')::int=401;
  raise notice 'PASS: capability admission, legacy isolation, lease fencing, chunk retries, digest verification, owner isolation and durable result';
 end $$;
 reset role;
 do $$ begin
+ assert not has_function_privilege('authenticated','public.worker_device_artifact(uuid,uuid,bigint,uuid,integer)','EXECUTE');
  assert not has_function_privilege('authenticated','public.worker_media_artifact(uuid,uuid,integer)','EXECUTE');
  assert not has_function_privilege('anon','public.worker_media_write(uuid,uuid,bigint,uuid,uuid,integer,bytea,integer,bytea)','EXECUTE');
 end $$;

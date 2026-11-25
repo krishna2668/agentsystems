@@ -193,7 +193,7 @@ export async function dispatchOwner(env,id,method,path,raw){
       let m=path.match(/^\/owner\/jobs\/([^/]+)$/);
       if(m&&method==="GET"){const r=await rpc(env,"worker_result",{p_owner:id,p_job:requireId(m[1])});need(r,404,"job not found");return response(200,r);}
       m=path.match(/^\/owner\/jobs\/([^/]+)\/artifact$/);
-      if(m&&method==="GET"){const job=requireId(m[1]);const r=await rpc(env,"worker_media_manifest",{p_owner:id,p_job:job});need(r,404,"artifact unavailable");return response(200,{...r,download_page:"https://gateway.example.invalid/workers?artifact="+job});}
+      if(m&&method==="GET"){const job=requireId(m[1]);const r=await rpc(env,"worker_media_manifest",{p_owner:id,p_job:job});need(r,404,"artifact unavailable");return response(200,{...r,preview_url:"https://gateway.example.invalid/artifacts/"+job,download_page:"https://gateway.example.invalid/workers?artifact="+job});}
       m=path.match(/^\/owner\/devices\/([^/]+)\/media-permission$/);
       if(m&&method==="POST"){const b=parse(raw);need(typeof b.enabled==="boolean",400,"invalid permission");return rpcReply(await rpc(env,"worker_media_permission",{p_owner:id,p_device:requireId(m[1]),p_enabled:b.enabled}));}
       m=path.match(/^\/owner\/jobs\/([^/]+)\/artifact\/(0|[1-9][0-9]?)$/);
@@ -246,9 +246,17 @@ export default {async fetch(req,env){
     }
     if(path.startsWith("/worker/")&&method==="POST"){
       const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish)$/);
-      need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/verify-connection"||m,404,"not found");
+      const artifact=path.match(/^\/worker\/artifacts\/([^/]+)(?:\/(0|[1-9][0-9]?))?$/);
+      need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/verify-connection"||m||artifact,404,"not found");
       const auth=await device(req,env,path,raw);
       await limit(env,"device:"+auth.p_device);
+      if(artifact){
+        need(raw.length===0&&(artifact[2]===undefined||Number(artifact[2])<32),400,"invalid artifact request");
+        const r=await rpc(env,"worker_device_artifact",{...auth,p_job:requireId(artifact[1]),p_seq:artifact[2]===undefined?null:Number(artifact[2])});
+        need(r&&[200,400,401,403,404,409].includes(r.status),503,"artifact unavailable");
+        need(r.status===200,r.status,"artifact unavailable");
+        return response(200,r.artifact);
+      }
       if(path==="/worker/verify-connection"){
         const b=parse(raw);
         need(b.origin===url.origin&&typeof b.challenge==="string"&&UUID.test(b.challenge),400,"invalid connection challenge");

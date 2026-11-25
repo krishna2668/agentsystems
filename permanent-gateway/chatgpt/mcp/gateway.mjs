@@ -7,6 +7,21 @@ import {assets} from './consent-assets.mjs';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const enc=new TextEncoder();
+// Deployment substitutes a reviewed certificate fingerprint; unconfigured builds
+// deliberately publish no association. This is public metadata, not a signing key.
+const androidFingerprint="ANDROID_CERT_SHA256_UNCONFIGURED";
+export function appLinkResponse(path,method,search,fingerprint=androidFingerprint){
+ if(path==="/.well-known/assetlinks.json"){
+  if(method!=="GET"||search)return json({error:"Not found"},404);
+  if(!/^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(fingerprint))return json([]);
+  return json([{relation:["delegate_permission/common.handle_all_urls"],target:{namespace:"android_app",package_name:"dev.worker.test",sha256_cert_fingerprints:[fingerprint]}}]);
+ }
+ if(!path.startsWith("/artifacts/"))return null;
+ const job=path.slice("/artifacts/".length);
+ if(method!=="GET"||search||!uuid.test(job))return json({error:"Not found"},404);
+ // Browser fallback contains no credential or artifact data; sign-in is required.
+ return new Response(null,{status:302,headers:{Location:"/workers?artifact="+job,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+}
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' "+authProject+"; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"};
 export function allowedMcpRoute(method,path){
@@ -59,6 +74,8 @@ export function buildGateway({rpcCall=rpc,limiter=limit,dispatch=dispatchOwner,j
   try{
    const url=new URL(req.url),path=url.pathname;
    if(url.origin!==gatewayOrigin)return json({error:'Invalid host'},400);
+   const appLink=appLinkResponse(path,req.method,url.search);
+   if(appLink)return appLink;
    const isMcp=path==='/mcp'||path==='/\.well-known/oauth-protected-resource'||path==='/\.well-known/oauth-protected-resource/mcp';
    const isOauth=path==='/'||path==='/workers'||path.startsWith('/oauth/');
    const isReady=path==='/ready';
