@@ -31,3 +31,11 @@ jobs:
         run: /usr/bin/python3 production-pilot/render.py
       - name: Verify
         run: bash scripts/test.sh
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: ''
+      - name: Compile native Android Companion
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          ./gradlew --no-daemon :android-app:assembleDebug

@@ -22,17 +22,14 @@ import org.json.JSONObject;
 public final class MainActivity extends Activity {
  private static final String ALIAS="worker-test-v04";
  private static final String GATEWAY="https://gateway.example.invalid";
+ static String gatewayOrigin(){return GATEWAY;}
  private static final String PREVIOUS_GATEWAY="https://previous-gateway.example.invalid";
  private static final java.util.concurrent.atomic.AtomicBoolean TRANSITIONING=new java.util.concurrent.atomic.AtomicBoolean();
  private static final String ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
  private static final ExecutorService executor=Executors.newSingleThreadExecutor();
  private SharedPreferences prefs;
  private TextView heading,description,status,displayCode;
- private Button connect,copy,run,play;
- private TextView previewLabel;
- private VideoView previewVideo;
- private java.nio.file.Path previewPath;
- private boolean previewReady;
+ private Button connect,copy,run;
  private boolean busy=false, visible=false, resumed=false;
  private final StartIntent startIntent=new StartIntent();
  private static final int NOTIFICATION_REQUEST=61;
@@ -48,7 +45,7 @@ public final class MainActivity extends Activity {
  @Override protected void onResume(){super.onResume();resumed=true;continueStart();}
  @Override protected void onPause(){resumed=false;super.onPause();}
  @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putInt("worker_start_intent",startIntent.state());}
- @Override protected void onStop(){visible=false;handler.removeCallbacks(refreshTick);if(previewVideo!=null){previewVideo.stopPlayback();previewPath=null;previewReady=false;play.setEnabled(false);}super.onStop();}
+ @Override protected void onStop(){visible=false;handler.removeCallbacks(refreshTick);super.onStop();}
  private TextView text(LinearLayout root,float size){TextView t=new TextView(this);t.setTextSize(size);root.addView(t);return t;}
  private Button button(LinearLayout root,String label){Button b=new Button(this);b.setText(label);root.addView(b);return b;}
  @Override public void onCreate(Bundle state){
@@ -60,14 +57,6 @@ public final class MainActivity extends Activity {
    heading=text(root,28);description=text(root,16);status=text(root,16);displayCode=text(root,26);
    displayCode.setTextIsSelectable(true);
    connect=button(root,"Connect this Worker");copy=button(root,"Copy request code");run=button(root,"Start worker");
-   previewLabel=text(root,16);previewVideo=new VideoView(this);
-   root.addView(previewVideo,new LinearLayout.LayoutParams(-1,(int)(320*getResources().getDisplayMetrics().density)));
-   play=button(root,"Play preview");play.setEnabled(false);
-   previewVideo.setOnPreparedListener(mp->{previewReady=true;play.setEnabled(true);previewVideo.seekTo(1);});
-   previewVideo.setOnCompletionListener(mp->play.setText("Replay preview"));
-   previewVideo.setOnErrorListener((mp,what,extra)->{previewReady=false;play.setEnabled(false);previewLabel.setText("Preview cannot be played on this device");return true;});
-   play.setOnClickListener(v->{if(!previewReady)return;if(previewVideo.isPlaying()){previewVideo.pause();play.setText("Play preview");}else{previewVideo.start();play.setText("Pause preview");}});
-
    connect.setOnClickListener(v->{if(legacy())transition();else request(true);});
    copy.setOnClickListener(v->{if(!prefs.contains("request_id")||!prefs.getBoolean("request_registered",false)||paired())return;
      if(prefs.getLong("request_expiry",0)<=System.currentTimeMillis()/1000)return;
@@ -140,22 +129,6 @@ public final class MainActivity extends Activity {
    connect.setEnabled(!busy&&(!legacy()||(WorkerService.quiescent()&&!TRANSITIONING.get())));connect.setText(canTransition()?(TRANSITIONING.get()?"Verifying connection…":"Update connection"):pending?"Check connection":"Connect this Worker");
    run.setVisibility(connected||WorkerService.active?android.view.View.VISIBLE:android.view.View.GONE);
    run.setText(WorkerService.active?"Pause worker":prefs.getBoolean("authorization_blocked",false)?"Check authorization":"Start worker");
-   refreshPreview();
- }
- private void refreshPreview(){
-   java.nio.file.Path next;
-   try{next=new LocalPreview(getFilesDir().toPath()).latest();}catch(IOException e){previewLabel.setText("Preview unavailable");return;}
-   boolean show=next!=null&&paired();
-   previewLabel.setVisibility(show?android.view.View.VISIBLE:android.view.View.GONE);
-   previewVideo.setVisibility(show?android.view.View.VISIBLE:android.view.View.GONE);
-   play.setVisibility(show?android.view.View.VISIBLE:android.view.View.GONE);
-   if(!show){if(previewPath!=null){previewVideo.stopPlayback();previewPath=null;previewReady=false;play.setEnabled(false);}return;}
-   if(!next.equals(previewPath)){
-    if(previewVideo.isPlaying()){previewLabel.setText("New local preview ready · finish playback to update");return;}
-    previewVideo.stopPlayback();previewReady=false;play.setEnabled(false);play.setText("Play preview");
-    previewPath=next;previewLabel.setText("Latest local render · upload verified separately");
-    previewVideo.setVideoPath(next.toString());
-   }else if(previewReady&&!previewVideo.isPlaying()&&"Pause preview".contentEquals(play.getText()))play.setText("Play preview");
  }
  private void request(boolean manual){
    if(busy||paired()||legacy())return;
@@ -238,5 +211,5 @@ public final class MainActivity extends Activity {
  static final class HttpFailure extends IOException{
   final int code;HttpFailure(int code){super("HTTP "+code);this.code=code;}
  }
- @Override protected void onDestroy(){handler.removeCallbacks(refreshTick);if(previewVideo!=null)previewVideo.stopPlayback();super.onDestroy();}
+ @Override protected void onDestroy(){handler.removeCallbacks(refreshTick);super.onDestroy();}
 }

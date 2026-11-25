@@ -20,3 +20,13 @@ production-pilot/*.png
 production-pilot/probe.json
 .DS_Store
 __pycache__/
+
+.gradle/
+android-app/build/
+local.properties
+.kotlin/
+
+/build/
+
+# Generated browser preview bundle
+permanent-gateway/chatgpt/mcp/preview/client.bundle.js

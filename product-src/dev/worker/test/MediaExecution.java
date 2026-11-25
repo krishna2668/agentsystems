@@ -44,9 +44,11 @@ final class MediaExecution {
   String legacy(){return String.join("\t",job,lease,payload);}
  }
  private final Path meta,artifact,part;
- private final Remote remote;private final Render renderer;private final LocalPreview preview;private final PilotProject projects;
+ private final ArtifactLibrary library;private final PilotProject projects;
+ private final Remote remote;private final Render renderer;
  MediaExecution(Path dir,Remote remote,Render renderer){
-  meta=dir.resolve("media-checkpoint-v1");artifact=dir.resolve("media-artifact-v1.mp4");part=dir.resolve("media-artifact-v1.part.mp4");this.remote=remote;this.renderer=renderer;preview=new LocalPreview(dir);projects=new PilotProject(dir);
+  library=new ArtifactLibrary(dir);projects=new PilotProject(dir);
+  meta=dir.resolve("media-checkpoint-v1");artifact=dir.resolve("media-artifact-v1.mp4");part=dir.resolve("media-artifact-v1.part.mp4");this.remote=remote;this.renderer=renderer;
  }
  boolean pending(){return Files.exists(meta);}
  Claim load()throws IOException{
@@ -81,7 +83,6 @@ final class MediaExecution {
   }
   long size=Files.size(artifact);if(size<=0||size>MAX_BYTES)throw new IOException("Invalid media artifact size");
   byte[] data=Files.readAllBytes(artifact);String digest=Execution.hash(data);
-  preview.publish(c.job,artifact);
   if(!"completed".equals(r.state)){
    checkClaim(r,c);r=remote.recover(c.job,c.lease);
    if(!c.job.equals(r.job))throw new IOException("Media recovery mismatch");
@@ -92,6 +93,8 @@ final class MediaExecution {
    }
   }
   if(!"completed".equals(r.state)||!digest.equals(r.proof))throw new IOException("Media completion unconfirmed");
+  // Publish before clearing the checkpoint; a restart safely retries publication.
+  library.publish(c.job,data,digest);
   Files.delete(meta);Files.deleteIfExists(artifact);return c.job;
  }
  private String clearBlocked(Claim c,Execution.Recovery r)throws IOException{

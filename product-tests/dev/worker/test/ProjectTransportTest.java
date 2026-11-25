@@ -15,7 +15,7 @@ public final class ProjectTransportTest {
   UUID a=UUID.randomUUID(),b=UUID.randomUUID(),c=UUID.randomUUID();
   m.save(claim(a,l,"p1:"+p+":0:2:3:4:5"));if(!a.toString().equals(m.step()))throw new AssertionError("create result");
   m.save(claim(b,l,"p1:"+p+":1:1"));if(!b.toString().equals(m.step()))throw new AssertionError("edit result");
-  if(renders[0]!=2||!new PilotProject(dir).read(p,2).spec.noticeReaction||Files.readAllBytes(new LocalPreview(dir).latest())[0]!=1)throw new AssertionError("revision not rendered");
+  if(renders[0]!=2||!new PilotProject(dir).read(p,2).spec.noticeReaction||Files.readAllBytes(new ArtifactLibrary(dir).file(b.toString()))[0]!=1||!Files.exists(new ArtifactLibrary(dir).file(a.toString())))throw new AssertionError("revision not rendered");
   m.save(claim(c,l,"p1:"+UUID.randomUUID()+":1:1"));if(!("blocked:"+c).equals(m.step())||m.pending()||rejects[0]!=1||renders[0]!=2)throw new AssertionError("failed revision retained or rendered");
   System.out.println("PASS: project commands render persistent revisions and reject unavailable projects without blocking subsequent work");
  }

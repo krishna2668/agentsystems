@@ -34,9 +34,9 @@ Keep the gates distinct:
 
 Local engineering experiments are not evidence of physical Worker acceptance. RunOrc remains an engineering environment, not a production dependency. No new provider, paid resource or deployment is required to define or test the local loop.
 
-### First preview slice (local implementation)
+### Companion preview
 
-The Android Worker retains the latest complete local pilot render and exposes playback in the existing app. Preview availability is separate from upload acknowledgement and independent creative evaluation. A failed replacement preserves the previous preview. This is still the fixed pilot; no general editable project, revision-addressed operation API or physical playback acceptance is claimed. Next, introduce persistent project identity and revision-aware programmatic scene changes; retain prior artifacts in the durable result store.
+The newer native Companion and its verified private artifact library supersede the earlier latest-only preview experiment. Preserve all completed outputs, link directly to the requested artifact and retain the browser handoff. Playback availability follows confirmed integrity, not merely local render completion. See COMPANION.md.
 
 ### First editable project slice (local implementation)
 

@@ -21,6 +21,9 @@ begin
  assert convert_from(decode(split_part(x->>'claim',E'\t',4),'base64'),'UTF8')='p1:'||p::text||':0:2:3:4:5';
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,0,artifact,null,null)->>'status')::int=200;
  assert (public.worker_media_write(d,gen_random_uuid(),stamp,j,l,null,null,1,sha256(artifact))->>'state')='completed';
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,null)->>'status')::int=200;
+ assert (public.worker_device_artifact(d,gen_random_uuid(),stamp,j,0)->>'status')::int=200;
+ assert (public.worker_device_artifact(e,gen_random_uuid(),stamp,j,null)->>'status')::int in (403,404);
  assert public.worker_project_read(b,p) is null;
  assert public.worker_project_read(a,p)->>'status'='completed';
  x:=public.worker_project_submit(a,d,'edit',p,1,null,true);assert (x->>'status')::int=201;k:=(x->>'job_id')::uuid;

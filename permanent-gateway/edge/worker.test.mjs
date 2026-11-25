@@ -41,6 +41,10 @@ globalThis.fetch=async(url,opts)=>{
     case "worker_project_read":return j({project_id:a.p_project,revision:1,status:"completed"});
     case "worker_media_submit":return j({status:201,job_id:job,state:"queued"});
     case "worker_media_write":return j({status:200,state:a.p_seq===null?"completed":"uploaded",sha256:sha("video")});
+    case "worker_device_artifact":
+      if(used.has(a.p_nonce))return j({status:409});
+      used.add(a.p_nonce);
+      return j(a.p_device===dev&&a.p_job===job?{status:200,artifact:a.p_seq===null?{job_id:job,sha256:sha("video"),bytes:5,chunks:1}:{seq:a.p_seq,sha256:sha("video"),chunks:1,bytes_b64:"dmlkZW8="}}:{status:404});
     case "worker_media_manifest":return j({job_id:job,sha256:sha("video"),bytes:5,chunks:1,integrity:"verified",media_validity:"unverified"});
     case "worker_media_permission":return j({status:200,media_enabled:a.p_enabled});
     case "worker_media_artifact":return j({sha256:sha("video"),seq:a.p_seq,bytes_b64:"dmlkZW8=",chunks:1});
@@ -247,4 +251,20 @@ test("project commands use authenticated owner and signed compatible claim/rejec
  const path="/worker/claim-v3";r=await run(path,{method:"POST",headers:signed(path),body:""});assert.equal(r.status,200);assert.equal(calls.at(-1).args.p_op,"claim_v3");
  const reject="/worker/jobs/"+job+"/reject_project",body=JSON.stringify({lease});
  r=await run(reject,{method:"POST",headers:signed(reject,body),body});assert.equal((await r.json()).status,"blocked");
+});
+
+test("device artifact read is signed, scoped and replay fenced",async()=>{
+ const path="/worker/artifacts/"+job,headers=signed(path);
+ assert.equal((await run(path,{method:"POST",headers})).status,200);
+ assert.equal(calls.at(-1).args.p_device,dev);
+ assert.equal(calls.at(-1).args.p_seq,null);
+ assert.equal((await run(path,{method:"POST",headers})).status,409);
+ assert.equal((await run(path,{method:"POST"})).status,401);
+ const chunk=path+"/0";
+ const r=await run(chunk,{method:"POST",headers:signed(chunk)});
+ assert.equal(r.status,200);assert.equal((await r.json()).bytes_b64,"dmlkZW8=");
+ const unknown="/worker/artifacts/"+randomUUID();
+ assert.equal((await run(unknown,{method:"POST",headers:signed(unknown)})).status,404);
+ const invalid=path+"/32";
+ assert.equal((await run(invalid,{method:"POST",headers:signed(invalid)})).status,400);
 });

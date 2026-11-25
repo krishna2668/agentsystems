@@ -141,3 +141,44 @@ test('pilot project routes delegated narrowly',()=>{
  assert.equal(allowedMcpRoute('DELETE','/owner/projects/'+session),false);
  assert.equal(allowedMcpRoute('POST','/owner/projects/'+session),false);
 });
+
+test('App Links publish only the reviewed certificate; browser fallback reveals no media',async()=>{
+ const {appLinkResponse}=await import('./gateway.mjs');
+ const path='/.well-known/assetlinks.json',fingerprint=Array(32).fill('AB').join(':');
+ assert.deepEqual(await appLinkResponse(path,'GET','').json(),[]);
+ const r=appLinkResponse(path,'GET','',fingerprint);
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),[{relation:['delegate_permission/common.handle_all_urls'],target:{namespace:'android_app',package_name:'dev.worker.test',sha256_cert_fingerprints:[fingerprint]}}]);
+ const {gw,calls}=fixture({limiter:async()=>{throw Error('Static handoff must not depend on rate-limit service');}});
+ const link=await gw.fetch(get('/artifacts/'+session),{});
+ assert.equal(link.status,200);
+ assert.equal(link.headers.get('Location'),null);
+ assert.equal(link.headers.get('Cache-Control'),'no-store');
+ assert.ok(link.headers.get('Content-Security-Policy').includes("connect-src 'none'"));
+ assert.ok(link.headers.get('X-Robots-Tag').includes('noindex'));
+ const html=await link.text();
+ assert.ok(html.includes('Continue on your Android phone'));
+ assert.ok(html.includes(origin+'/artifacts/'+session));
+ assert.ok(html.includes('preview-qr'));
+ assert.ok(!html.includes('/workers'));
+ assert.ok(!html.includes('Sign in'));
+ assert.ok(!html.includes('Your animation is ready'));
+ assert.ok(!html.includes(env.SUPABASE_SERVER_KEY));
+ assert.deepEqual(calls,[]);
+ // Existence is never checked or disclosed; arbitrary syntactically valid
+ // identifiers receive the same static handoff.
+ const unknown=await gw.fetch(get('/artifacts/'+client),{});
+ assert.equal((await unknown.text()).replaceAll(client,session),html);
+ for(const [path,type] of [['/preview/client.js','application/javascript'],['/preview/style.css','text/css']]){
+  const r=await gw.fetch(get(path),{});
+  assert.equal(r.status,200);
+  assert.ok(r.headers.get('Content-Type').startsWith(type));
+  assert.ok((await r.text()).length>100);
+  assert.equal((await gw.fetch(get(path+'?x=1'),{})).status,404);
+ }
+ assert.deepEqual(calls,[]);
+ assert.equal((await gw.fetch(get('/artifacts/'+session+'?token=x'),env)).status,404);
+ assert.equal((await gw.fetch(get('/artifacts/not-a-job'),env)).status,404);
+ assert.equal((await gw.fetch(post(path,{}),env)).status,404);
+ assert.equal((await gw.fetch(post('/artifacts/'+session,{}),env)).status,404);
+});
