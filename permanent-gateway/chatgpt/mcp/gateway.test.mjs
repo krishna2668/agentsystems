@@ -170,8 +170,22 @@ test('App Links publish only the reviewed certificate; browser fallback reveals 
   assert.equal((await gw.fetch(get(path+'?x=1'),{})).status,404);
  }
  assert.deepEqual(calls,[]);
- assert.equal((await gw.fetch(get('/artifacts/'+session+'?token=x'),env)).status,404);
- assert.equal((await gw.fetch(get('/artifacts/not-a-job'),env)).status,404);
+ // Chat clients and browsers can append query parameters. Never echo them
+ // or treat them as authorization, redirect targets or job identity.
+ for(const suffix of ['?utm_source=chatgpt.com','?token=x&redirect=https://evil.example','/?utm_source=chatgpt','/']){
+  const decorated=await gw.fetch(get('/artifacts/'+session+suffix),{});
+  assert.equal(decorated.status,200);
+  assert.equal(await decorated.text(),html);
+ }
+ const head=await gw.fetch(new Request(origin+'/artifacts/'+session+'?utm_source=chatgpt.com',{method:'HEAD'}),{});
+ assert.equal(head.status,200);assert.equal(await head.text(),'');
+ for(const path of ['/artifacts','/artifacts/','/artifacts/not-a-job','/artifacts/'+session+'/extra']){
+  const invalid=await gw.fetch(get(path),{});
+  assert.equal(invalid.status,404);
+  assert.ok(invalid.headers.get('Content-Type').startsWith('text/html'));
+  assert.ok((await invalid.text()).includes('Return to ChatGPT'));
+ }
+ assert.deepEqual(calls,[]);
  assert.equal((await gw.fetch(post(path,{}),env)).status,404);
  assert.equal((await gw.fetch(post('/artifacts/'+session,{}),env)).status,404);
 });

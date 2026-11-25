@@ -69,3 +69,5 @@ an empty statement list. Verify the exact candidate certificate and the
 published association for each deployment that enables App Links. A test
 certificate is only for this private acceptance installation; no public
 release signing is established. Browser fallback is a public, non-indexable handoff with no artifact lookup or media disclosure. It displays the same canonical link and generates its QR code locally in the browser. No device management or sign-in is required to understand the next step. Actual media retrieval remains authenticated. Browser playback is not implemented.
+
+Public animation links ignore query decorations and accept a single trailing slash; QR and copied links always contain only the canonical origin and validated job identifier. Malformed preview paths return a human-readable page. Android parses the same decorated links without granting authority. Authenticated API route validation remains strict.

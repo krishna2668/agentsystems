@@ -29,6 +29,9 @@ export function previewPage(job){
 </article><footer>Private media stays protected. Browser playback is not available yet.</footer></main></body></html>`,
  {headers:{...previewSecurity,'Content-Type':'text/html; charset=utf-8'}});
 }
+export function previewNotFound(){
+ return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentSystems — Preview link</title><link rel="stylesheet" href="/preview/style.css"></head><body><main><header>AgentSystems</header><article><h1>This preview link is incomplete or invalid</h1><p>Return to ChatGPT and open the original animation link again.</p></article></main></body></html>`,{status:404,headers:{...previewSecurity,'Content-Type':'text/html; charset=utf-8'}});
+}
 export function previewAsset(path,method,search){
  if(path!=='/preview/client.js'&&path!=='/preview/style.css')return null;
  if(method!=='GET'||search)return new Response(null,{status:404,headers:previewSecurity});
