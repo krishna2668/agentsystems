@@ -4,7 +4,7 @@ import {decodeJwt,createRemoteJWKSet} from 'jose';
 import {consentApi,supabaseDecision} from './consent-api.mjs';
 import {gatewayOrigin,authProject} from './consent-policy.mjs';
 import {assets} from './consent-assets.mjs';
-import {previewPage,previewAsset} from './preview/page.mjs';
+import {previewPage,previewAsset,previewNotFound} from './preview/page.mjs';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const enc=new TextEncoder();
@@ -17,17 +17,19 @@ export function appLinkResponse(path,method,search,fingerprint=androidFingerprin
   if(!/^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(fingerprint))return json([]);
   return json([{relation:["delegate_permission/common.handle_all_urls"],target:{namespace:"android_app",package_name:"dev.worker.test",sha256_cert_fingerprints:[fingerprint]}}]);
  }
- if(!path.startsWith("/artifacts/"))return null;
- const job=path.slice("/artifacts/".length);
- if(method!=="GET"||search||!uuid.test(job))return json({error:"Not found"},404);
- // A browser receives a static handoff, never an account-management screen.
- return previewPage(job);
+ if(path!=="/artifacts"&&!path.startsWith("/artifacts/"))return null;
+ if(method!=="GET"&&method!=="HEAD")return json({error:"Not found"},404);
+ // The public link carries identity, not authority. Ignore client-added query
+ // parameters; only the validated path determines the canonical handoff.
+ const job=path.slice("/artifacts/".length).replace(/\/$/,"");
+ const response=uuid.test(job)?previewPage(job):previewNotFound();
+ return method==="HEAD"?new Response(null,{status:response.status,headers:response.headers}):response;
 }
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' "+authProject+"; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"};
 export function allowedMcpRoute(method,path){
- return (method==='GET'&&(path==='/owner/devices'||/^\/owner\/jobs\/[0-9a-f-]{36}(?:\/artifact)?$/.test(path)))||
- (method==='POST'&&['/owner/enrollments/lookup','/owner/jobs','/owner/knowledge/profiles','/owner/knowledge/context','/owner/knowledge/history','/owner/knowledge/observations','/owner/knowledge/job-evidence','/owner/knowledge/proposals'].includes(path));
+ return (method==='GET'&&(path==='/owner/devices'||/^\/owner\/projects\/[0-9a-f-]{36}$/.test(path)||/^\/owner\/jobs\/[0-9a-f-]{36}(?:\/artifact)?$/.test(path)))||
+ (method==='POST'&&['/owner/enrollments/lookup','/owner/jobs','/owner/projects','/owner/knowledge/profiles','/owner/knowledge/context','/owner/knowledge/history','/owner/knowledge/observations','/owner/knowledge/job-evidence','/owner/knowledge/proposals'].includes(path));
 }
 function authProblem(status,code){return Object.assign(new Error(code),{status,code});}
 export async function getVerifiedUser(auth,env){

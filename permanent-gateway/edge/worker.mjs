@@ -180,6 +180,15 @@ export async function dispatchOwner(env,id,method,path,raw){
         if(r?.status!==201)return rpcReply(r);
         return response(201,{code,expires_at:Math.floor(Date.now()/1000)+300});
       }
+      if(path==="/owner/projects"&&method==="POST"){
+        const b=parse(raw);need(typeof b.idempotency_key==="string"&&b.idempotency_key.length>=1&&b.idempotency_key.length<=128&&Number.isInteger(b.expected_revision)&&b.expected_revision>=0&&b.expected_revision<=15,400,"invalid project operation");
+        need(b.expected_revision===0?(typeof b.timing==="string"&&b.notice==null):(b.timing==null&&typeof b.notice==="boolean"),400,"invalid project edit");
+        return rpcReply(await rpc(env,"worker_project_submit",{p_owner:id,p_device:requireId(b.device_id),p_idem:b.idempotency_key,p_project:requireId(b.project_id),p_expected:b.expected_revision,p_timing:b.timing??null,p_notice:b.notice??null}));
+      }
+      const projectMatch=path.match(/^\/owner\/projects\/([^/]+)$/);
+      if(projectMatch&&method==="GET"){
+        const r=await rpc(env,"worker_project_read",{p_owner:id,p_project:requireId(projectMatch[1])});need(r,404,"project unavailable");return response(200,r);
+      }
       if(path==="/owner/jobs"&&method==="POST"){
         const b=parse(raw);need(typeof b.idempotency_key==="string"&&b.idempotency_key.length>=1&&b.idempotency_key.length<=128,400,"invalid idempotency key");
         const args={p_owner:id,p_device:requireId(b.device_id),p_idem:b.idempotency_key};
@@ -245,9 +254,9 @@ export default {async fetch(req,env){
       return rpcReply(await rpc(env,"worker_enroll",{p_hash:"\\x"+await digest(enc.encode(b.code)),p_key:pgbytes(key)}));
     }
     if(path.startsWith("/worker/")&&method==="POST"){
-      const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish)$/);
+      const m=path.match(/^\/worker\/jobs\/([^/]+)\/(recover|complete|chunk|finish|reject_project)$/);
       const artifact=path.match(/^\/worker\/artifacts\/([^/]+)(?:\/(0|[1-9][0-9]?))?$/);
-      need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/verify-connection"||m||artifact,404,"not found");
+      need(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/claim-v3"||path==="/worker/verify-connection"||m||artifact,404,"not found");
       const auth=await device(req,env,path,raw);
       await limit(env,"device:"+auth.p_device);
       if(artifact){
@@ -263,8 +272,8 @@ export default {async fetch(req,env){
         // Read-only proof: no claim, lease, identity or checkpoint mutation.
         return response(200,{status:"verified",device_id:auth.p_device,origin:url.origin,challenge:b.challenge});
       }
-      if(path==="/worker/claim"||path==="/worker/claim-v2"){
-        const r=await rpc(env,"worker_operation",{...auth,p_op:path.endsWith("-v2")?"claim_v2":"claim"});
+      if(path==="/worker/claim"||path==="/worker/claim-v2"||path==="/worker/claim-v3"){
+        const r=await rpc(env,"worker_operation",{...auth,p_op:path.endsWith("-v3")?"claim_v3":path.endsWith("-v2")?"claim_v2":"claim"});
         if(r?.status===200){need(typeof r.claim==="string",503,"invalid claim response");return response(200,r.claim,true);}return rpcReply(r);
       }
       const b=parse(raw),args={...auth,p_op:m[2],p_job:requireId(m[1]),p_lease:requireId(b.lease)};

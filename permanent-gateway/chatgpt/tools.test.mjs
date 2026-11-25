@@ -16,7 +16,7 @@ function fixture(options={}){
  return {host,calls};
 }
 test("tool registry contains no administrator or credential tools",()=>{
- assert.equal(definitions.length,7);
+ assert.equal(definitions.length,10);
  assert.ok(definitions.every(t=>t.inputSchema.additionalProperties===false));
  assert.equal(definitions.find(t=>t.name==="approve_worker_request").annotations.readOnlyHint,false);
 });
@@ -63,4 +63,14 @@ test("bounded animatic and manifest routes; no media permission delegation",asyn
  await executeTool("get_media_artifact",{job_id:request_id},host);
  assert.equal(calls.at(-1).path,"/owner/jobs/"+request_id+"/artifact");
  await assert.rejects(executeTool("worker_media_permission",{},host),/Unknown tool/);
+});
+
+test("project create, targeted edit and read use stable IDs and expected revision",async()=>{
+ const {host,calls}=fixture(), common={device_id,project_id:request_id,idempotency_key:"project-1"};
+ await executeTool("create_pilot_project",{...common,establish:2,notice:3,approach:4,share:5},host);
+ assert.deepEqual(calls.at(-1).body,{...common,expected_revision:0,timing:"v1:2:3:4:5",notice:null});
+ await executeTool("edit_pilot_notice",{...common,idempotency_key:"edit-1",expected_revision:1,enabled:true},host);
+ assert.equal(calls.at(-1).body.notice,true);assert.equal(calls.at(-1).body.expected_revision,1);
+ await assert.rejects(executeTool("edit_pilot_notice",{...common,expected_revision:0,enabled:true},host),/Invalid project/);
+ await executeTool("read_pilot_project",{project_id:request_id},host);assert.equal(calls.at(-1).path,"/owner/projects/"+request_id);
 });

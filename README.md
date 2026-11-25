@@ -9,7 +9,7 @@ An experimental intelligent production system that executes work, evaluates outc
 
 ## Architecture
 
-Intelligence plans and evaluates; an authenticated gateway coordinates bounded jobs; persistent storage retains results and knowledge; Workers execute tasks. Resources are replaceable. RunOrc is an engineering environment, not a runtime dependency.
+ChatGPT is the creative intelligence and the sole creative control interface. AgentSystems connects it to a programmatically operated Android production workspace: the application engine maintains editable project state and uses the phone’s computation to process, preview, render and export media. The user chats in ChatGPT and previews the work in the Android application on the same device. No manual editing interface, local AI agent or UI click automation is required. An authenticated gateway coordinates bounded jobs; persistent storage retains results and reviewed knowledge. RunOrc is an engineering environment, not a runtime dependency.
 
 ## Project status
 

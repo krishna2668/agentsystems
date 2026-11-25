@@ -14,6 +14,9 @@ export const definitions=Object.freeze([
  {name:"list_workers",description:"List the authenticated owner's registered Workers, including revoked devices.",inputSchema:schema({},[]),annotations:meta(true,true)},
  {name:"submit_connection_test",description:"Submit a bounded harmless SHA-256 connection test to a selected active Worker. Reuse the same idempotency key on retries.",inputSchema:schema({device_id:idSchema,idempotency_key:{type:"string",minLength:1,maxLength:128}},["device_id","idempotency_key"]),annotations:meta(false,true)},
  {name:"submit_animatic",description:"Submit the bounded silent four-beat pilot renderer to a media-enabled Worker. Reuse the same idempotency key on retries.",inputSchema:schema({device_id:idSchema,idempotency_key:{type:"string",minLength:1,maxLength:128},establish:duration,notice:duration,approach:duration,share:duration},["device_id","idempotency_key","establish","notice","approach","share"]),annotations:meta(false,true)},
+ {name:"create_pilot_project",description:"Create an editable umbrella pilot and render revision 1 on a project-capable Worker. Keep project ID and idempotency key stable on retry.",inputSchema:schema({device_id:idSchema,project_id:idSchema,idempotency_key:{type:"string",minLength:1,maxLength:128},establish:duration,notice:duration,approach:duration,share:duration},["device_id","project_id","idempotency_key","establish","notice","approach","share"]),annotations:meta(false,true)},
+ {name:"edit_pilot_notice",description:"Set the notice reaction on an existing pilot project and render the next revision. Requires the current completed base revision. Reuse key on exact retry.",inputSchema:schema({device_id:idSchema,project_id:idSchema,idempotency_key:{type:"string",minLength:1,maxLength:128},expected_revision:{type:"integer",minimum:1,maximum:15},enabled:{type:"boolean"}},["device_id","project_id","idempotency_key","expected_revision","enabled"]),annotations:meta(false,true)},
+ {name:"read_pilot_project",description:"Read latest submitted pilot revision, status, and render job reference. Does not assert creative quality.",inputSchema:schema({project_id:idSchema},["project_id"]),annotations:meta(true,true)},
  {name:"get_media_artifact",description:"Retrieve the integrity manifest, native Android preview URL and authenticated browser fallback for a completed media job. Does not return raw media as model text or assert creative quality.",inputSchema:schema({job_id:idSchema},["job_id"]),annotations:meta(true,true)},
  {name:"get_worker_result",description:"Retrieve the durable status and verified result of a previously submitted job.",inputSchema:schema({job_id:idSchema},["job_id"]),annotations:meta(true,true)}
 ]);
@@ -53,8 +56,21 @@ export async function executeTool(name,args,host){
    const device_id=uuid(args.device_id),key=args.idempotency_key,values=[args.establish,args.notice,args.approach,args.share];
    if(typeof key!=="string"||key.length<1||key.length>128||values.some(v=>!Number.isInteger(v)||v<1||v>10)||values.reduce((a,v)=>a+v,0)>30)fail("Invalid animatic specification");
    const list=await host.ownerRequest("GET","/owner/devices");
-   if(!list?.devices?.some(d=>d.id===device_id&&d.revoked===false&&d.media_version===1&&d.media_enabled===true))fail("Media-enabled Worker required");
+   if(!list?.devices?.some(d=>d.id===device_id&&d.revoked===false&&(d.media_version===1||d.media_version===2)&&d.media_enabled===true))fail("Media-enabled Worker required");
    return host.ownerRequest("POST","/owner/jobs",{capability:"media.animatic.render",device_id,idempotency_key:key,spec:"v1:"+values.join(":")});
+  }
+  case "create_pilot_project":
+  case "edit_pilot_notice":{
+   const create=name==="create_pilot_project";
+   keys(args,create?["device_id","project_id","idempotency_key","establish","notice","approach","share"]:["device_id","project_id","idempotency_key","expected_revision","enabled"]);
+   const device_id=uuid(args.device_id),project_id=uuid(args.project_id),key=args.idempotency_key;
+   if(typeof key!=="string"||key.length<1||key.length>128)fail("Invalid idempotency key");
+   const values=[args.establish,args.notice,args.approach,args.share];
+   if(create?values.some(v=>!Number.isInteger(v)||v<1||v>10)||values.reduce((a,v)=>a+v,0)>30:!Number.isInteger(args.expected_revision)||args.expected_revision<1||args.expected_revision>15||typeof args.enabled!=="boolean")fail("Invalid project operation");
+   return host.ownerRequest("POST","/owner/projects",{device_id,project_id,idempotency_key:key,expected_revision:create?0:args.expected_revision,timing:create?"v1:"+values.join(":"):null,notice:create?null:args.enabled});
+  }
+  case "read_pilot_project":{
+   keys(args,["project_id"]);return host.ownerRequest("GET","/owner/projects/"+uuid(args.project_id));
   }
   case "get_media_artifact":{
    keys(args,["job_id"]);return host.ownerRequest("GET","/owner/jobs/"+uuid(args.job_id)+"/artifact");

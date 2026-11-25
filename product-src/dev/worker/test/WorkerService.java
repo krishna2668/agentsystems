@@ -91,6 +91,10 @@ public final class WorkerService extends Service {
       JSONObject response=new JSONObject(signedPost(base,id,"/worker/jobs/"+job+"/chunk",new JSONObject().put("lease",lease).put("seq",seq).put("bytes_b64",java.util.Base64.getEncoder().encodeToString(bytes)).toString()));
       if(!"uploaded".equals(response.getString("status"))||response.getInt("seq")!=seq)throw new IOException("Media chunk unconfirmed");
      }
+     public Execution.Recovery rejectProject(String job,String lease)throws Exception{
+      JSONObject response=new JSONObject(signedPost(base,id,"/worker/jobs/"+job+"/reject_project",new JSONObject().put("lease",lease).toString()));
+      return new Execution.Recovery(response.getString("status"),response.getString("job_id"),response.getString("lease"));
+     }
      public String finish(String job,String lease,int count,String digest)throws Exception{
       JSONObject response=new JSONObject(signedPost(base,id,"/worker/jobs/"+job+"/finish",new JSONObject().put("lease",lease).put("count",count).put("sha256",digest).toString()));
       if(!"completed".equals(response.getString("status")))throw new IOException("Media completion unconfirmed");
@@ -103,7 +107,7 @@ public final class WorkerService extends Service {
      catch(MainActivity.HttpFailure e){
       if(e.code!=409)throw e;
       MediaExecution.Claim saved=media.load();
-      String claimed=signedPost(base,id,"/worker/claim-v2",null);
+      String claimed=claimMedia(base,id);
       if(claimed.isEmpty())throw e;
       MediaExecution.Claim renewed=new MediaExecution.Claim(claimed);
       if(saved==null||!saved.job.equals(renewed.job)||!saved.payload.equals(renewed.payload)||!MediaExecution.CAPABILITY.equals(renewed.capability)||saved.lease.equals(renewed.lease))throw e;
@@ -111,7 +115,7 @@ public final class WorkerService extends Service {
      }
     }else if(AnimaticRenderer.supported()){
      String claimed;
-     try{claimed=signedPost(base,id,"/worker/claim-v2",null);}
+     try{claimed=claimMedia(base,id);}
      catch(MainActivity.HttpFailure e){if(e.code!=404)throw e;claimed=null;}
      if(claimed==null)result=hash.step();
      else if(!claimed.isEmpty()){
@@ -125,12 +129,15 @@ public final class WorkerService extends Service {
    handler.post(()->finished(completed,error));
   });
  }
+ private String claimMedia(String base,String id)throws Exception{
+  try{return signedPost(base,id,"/worker/claim-v3",null);}catch(MainActivity.HttpFailure e){if(e.code!=404)throw e;return signedPost(base,id,"/worker/claim-v2",null);}
+ }
  private String signedPost(String base,String id,String path,String body)throws Exception{if(!running)throw new InterruptedIOException("Session stopped");return MainActivity.post(base,path,body,id);}
  private void finished(String result,Exception e){
   if(!running)return;
   if(e==null){
    prefs.edit().remove("authorization_blocked").apply();failures=0;if(result==null){if(idleSince==0)idleSince=SystemClock.elapsedRealtime();status("Queue idle · checking briefly");schedule(3000);}
-   else{idleSince=0;status("Result stored · "+result);schedule(1000);}return;
+   else{idleSince=0;status(result.startsWith("blocked:")?"Project revision blocked · local project unavailable":"Result stored · "+result);schedule(1000);}return;
   }
   boolean blocked=false;
   if(e instanceof MainActivity.HttpFailure){int c=((MainActivity.HttpFailure)e).code;if(c==401||c==403)prefs.edit().putBoolean("authorization_blocked",true).apply();blocked=c==401||c==403||c==404||c==409||c==422;}

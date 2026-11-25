@@ -10,8 +10,8 @@ android {
         applicationId = "dev.worker.test"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.11-companion-candidate"
+        versionCode = 12
+        versionName = "0.12-editable-pilot-candidate"
     }
     sourceSets["main"].java.srcDir("../product-src")
     buildFeatures { compose = true }

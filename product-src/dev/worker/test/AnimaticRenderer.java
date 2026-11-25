@@ -32,7 +32,15 @@ final class AnimaticRenderer {
    float y=360+(progress>0&&progress<1?3*(float)Math.sin(t*9):0);
    line(x-8,y+61,x-13,y+105,12,0x303e54);line(x+9,y+61,x+15,y+105,12,0x303e54);
    color(0xdb9e42);c.drawRoundRect(x-22,y+10,x+22,y+66,10,10,p);
-   oval(x-17,y-21,x+17,y+13,0xae7856);color(0x29323a);c.drawArc(x-19,y-26,x+19,y+8,180,180,true,p);oval(x+7,y-6,x+10,y-3,0x222d32);
+   oval(x-17,y-21,x+17,y+13,0xae7856);color(0x29323a);c.drawArc(x-19,y-26,x+19,y+8,180,180,true,p);
+   if(!s.noticeReaction){oval(x+7,y-6,x+10,y-3,0x222d32);}
+   else{
+    // Establish a forward-looking face, then turn toward the dog during noticing.
+    float gaze=(float)s.gaze(frame);
+    if(gaze<0.85f){float far=x-7+7*gaze;oval(far-1.8f,y-6,far+1.8f,y-2,0x222d32);}
+    float near=x+5+4*gaze;oval(near-2,y-6,near+2,y-2,0x222d32);
+    if(gaze>0.1f){line(near-3,y-10-gaze*2,near+3,y-10-gaze*2,1.4f,0x29323a);line(x+14,y+1,x+15+gaze*4,y+1,2,0xae7856);}
+   }
    float ux=x+10+20*progress,uy=y-66;
    line(ux,uy+13,x+18,y+31,3,0x343f45);color(0xe6bf59);c.drawArc(ux-64,uy-29,ux+64,uy+37,180,180,true,p);
    for(int i=0;i<100;i++){int rx=(rainX[i]+(int)(t*31))%380-10,ry=(rainY[i]+(int)(t*255))%680-20;if(Math.abs(rx-ux)<64&&uy-16<ry&&ry<y+110)continue;line(rx,ry,rx-5,ry+13,1,0xb3c5c8);}

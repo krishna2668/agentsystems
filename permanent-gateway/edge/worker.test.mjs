@@ -37,6 +37,8 @@ globalThis.fetch=async(url,opts)=>{
     case "worker_enroll":return j({status:201,device_id:dev});
     case "worker_key":return j(a.p_device===dev?{public_key:pub}:null);
     case "worker_submit":return j({status:201,job_id:job,state:"queued"});
+    case "worker_project_submit":return j({status:201,job_id:job,state:"queued",project_id:a.p_project,revision:a.p_expected+1});
+    case "worker_project_read":return j({project_id:a.p_project,revision:1,status:"completed"});
     case "worker_media_submit":return j({status:201,job_id:job,state:"queued"});
     case "worker_media_write":return j({status:200,state:a.p_seq===null?"completed":"uploaded",sha256:sha("video")});
     case "worker_device_artifact":
@@ -51,6 +53,8 @@ globalThis.fetch=async(url,opts)=>{
       if(used.has(a.p_nonce))return j({status:409});
       used.add(a.p_nonce);
       if(a.p_op==="claim")return j({status:200,claim:job+"\t"+lease+"\taGVsbG8="});
+      if(a.p_op==="claim_v3")return j({status:200,claim:""});
+      if(a.p_op==="reject_project")return j({status:200,state:"blocked",job_id:job,lease});
       if(a.p_op==="claim_v2")return j({status:200,claim:job+"\t"+lease+"\tmedia.animatic.render\tdjE6NDo0OjU6Nw=="});
       if(a.p_op==="recover")return j({status:200,state:"claimed",job_id:job,lease});
       return j({status:200,state:"completed",job_id:job,sha256:sha("hello")});
@@ -235,6 +239,18 @@ test("origin transition verifies existing identity without claiming work",async(
  const wrong=JSON.stringify({origin:"https://other.example",challenge});
  assert.equal((await run(path,{method:"POST",headers:signed(path,wrong),body:wrong})).status,400);
  assert.equal((await run(path,{method:"POST",headers:signed(path,body,pair.privateKey,String(Math.floor(Date.now()/1000)),randomUUID(),randomUUID()),body})).status,401);
+});
+
+test("project commands use authenticated owner and signed compatible claim/rejection",async()=>{
+ const args={device_id:dev,project_id:job,idempotency_key:"project",expected_revision:0,timing:"v1:2:3:4:5",notice:null};
+ assert.equal((await post("/owner/projects",args)).status,401);
+ let r=await post("/owner/projects",args,{Authorization:goodToken});assert.equal(r.status,201);assert.equal((await r.json()).revision,1);
+ assert.equal(calls.at(-1).args.p_owner,env.OWNER_ID);
+ r=await post("/owner/projects",{...args,expected_revision:1,timing:null,notice:true},{Authorization:goodToken});assert.equal((await r.json()).revision,2);
+ r=await run("/owner/projects/"+job,{headers:{Authorization:goodToken}});assert.equal(r.status,200);
+ const path="/worker/claim-v3";r=await run(path,{method:"POST",headers:signed(path),body:""});assert.equal(r.status,200);assert.equal(calls.at(-1).args.p_op,"claim_v3");
+ const reject="/worker/jobs/"+job+"/reject_project",body=JSON.stringify({lease});
+ r=await run(reject,{method:"POST",headers:signed(reject,body),body});assert.equal((await r.json()).status,"blocked");
 });
 
 test("device artifact read is signed, scoped and replay fenced",async()=>{
