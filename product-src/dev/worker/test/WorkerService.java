@@ -20,6 +20,7 @@ public final class WorkerService extends Service {
  private static final String CHANNEL="worker-production";
  private SharedPreferences prefs;
  private volatile boolean running=false;
+ private volatile boolean reviewSupported=true;
  private int failures=0;
  private long started,idleSince;
  static boolean quiescent(){return !active&&!busy.get();}
@@ -49,7 +50,7 @@ public final class WorkerService extends Service {
    else if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION,notification("Starting"),ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
    else startForeground(NOTIFICATION,notification("Starting"));
   }catch(RuntimeException e){status("Android restricted service start");stopSelf();return START_NOT_STICKY;}
-  active=true;running=true;status("Production running");started=SystemClock.elapsedRealtime();idleSince=0;failures=0;schedule(0);
+  active=true;running=true;reviewSupported=true;status("Production running");started=SystemClock.elapsedRealtime();idleSince=0;failures=0;schedule(0);
   return START_NOT_STICKY;
  }
  private void schedule(long ms){handler.removeCallbacks(tick);if(running)handler.postDelayed(tick,ms);}
@@ -131,7 +132,14 @@ public final class WorkerService extends Service {
     }else result=hash.step();
     // Backfill previously completed media too. Review failure never reverses a
     // confirmed render, and no screenshot is taken from the app's UI.
-    if(result==null){String reviewJob=review.step();if(reviewJob!=null)result="review:"+reviewJob;}
+    if(result==null&&reviewSupported){
+     try{String reviewJob=review.step();if(reviewJob!=null)result="review:"+reviewJob;}
+     catch(MainActivity.HttpFailure e){
+      // A v9 rollback has no optional review endpoint. Continue handling
+      // existing work; retry the retained review on the next user-started session.
+      if(e.code==404)reviewSupported=false;else throw e;
+     }
+    }
    }catch(Exception e){failure=e;}finally{busy.set(false);}
    final String completed=result;final Exception error=failure;
    handler.post(()->finished(completed,error));
